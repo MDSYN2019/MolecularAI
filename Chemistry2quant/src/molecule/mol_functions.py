@@ -13,29 +13,27 @@ from rdkit.Chem import Descriptors, rdMolDescriptors
 
 from sklearn.preprocessing import StandardScaler
 
-from mol_functions_chem import featurize_molecule_atoms
+logging.basicConfig(level=logging.INFO)
 
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 
-
-
-logging.basicConfig(level=logging.INFO)
-
-
-
-
+# labelling bond types
 BOND_TYPE_TO_IDX = {
     rdchem.BondType.SINGLE: 0,
     rdchem.BondType.DOUBLE: 1,
     rdchem.BondType.TRIPLE: 2,
     rdchem.BondType.AROMATIC: 3,
 }
+
+
 STEREO_TO_IDX = {
     rdchem.BondStereo.STEREONONE: 0,
     rdchem.BondStereo.STEREOZ:    1,
     rdchem.BondStereo.STEREOE:    2,
     rdchem.BondStereo.STEREOANY:  3,
 }
+
+
 BOND_DIR_TO_IDX = {
     rdchem.BondDir.NONE:         0,
     rdchem.BondDir.BEGINWEDGE:   1,
@@ -116,15 +114,19 @@ def rdkit_globals(smiles: str) -> np.ndarray:
     m = Chem.MolFromSmiles(smiles)
     if m is None:
         return np.zeros(len(RD_FEATURES), dtype=np.float32)
-    vals = [float(f(m)) for f in RD_FEATURES]
+    vals = [float(f(m)) for f in RD_FEATURES] # get the descriptors for each atom - these are listed on the RD_features
     return np.array(vals, dtype=np.float32)
 
-
 def randomize_smiles(s):
+    """
+    Randomize the smiles
+    """
     m = Chem.MolFromSmiles(s)
     return Chem.MolToSmiles(m, doRandom=True, canonical=False) if m else s
 
 def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
+    """
+    """
     G = nx.Graph()
     for i, label in enumerate(node_labels):
         G.add_node(i, label=label)
@@ -135,8 +137,10 @@ def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
             G.add_edge(i, j)
     return G
 
-
 def graph_descriptors(mol):
+    """
+    From the mol, return a torch graph 
+    """
     return torch.tensor([
         Descriptors.MolWt(mol),
         Descriptors.MolLogP(mol),
@@ -610,6 +614,8 @@ def resolve_conflicts(group: pd.DataFrame) -> pd.Series:
             out[p] = pd.NA
     # return a Series so GroupBy.apply can stack resu
     return pd.Series(out)
+
+
 # -------- load everything --------
 #official = load_official(TRAIN_CSV)
 #

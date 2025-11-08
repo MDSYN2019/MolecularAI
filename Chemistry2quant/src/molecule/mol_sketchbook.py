@@ -38,30 +38,46 @@ class GCNLayer(nn.Module):
     - Global mean pooling to get graph level representation
     """
 
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2):
+    def __init__(self,
+                 in_channels: int,
+                 hidden_channels: int,
+                 out_channels: int,
+                 num_layers: int =2,
+                 pooling: str = 'mean'):
+        
         super(GCNLayer, self).__init__()
+
+
         # The input layer
         self.conv1 = GCNConv(in_channels, hidden_channels)
 
-        # hidden layers - I think with this we can just build a layer of hidden layers?
-
-        self.convs = nn.ModuleList()
+        # Additional hidden GCN layers: hidden_dim -> hidden_dim
+        self.convs = nn.ModuleList()  # an initia list to build up the hidden neural network layers
         for _ in range(num_layers - 1):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
 
-        # doing mean pooling here
-
-        # x = global_mean_pool(x, batch)
-        # max pool
-        global_max_pool(x, batch)
-        # sum pool
-        # x = global_add_pool(x, batch)
-
-        # Output layer
+        # Simple 2 layer MLP head for graph-level predictions
         self.lin1 = nn.Linear(hidden_channels, hidden_channels)
         self.lin2 = nn.Linear(hidden_channels, out_channels)
 
-    def forward(self, x, edge_index, batch) -> None:  # what to return here
+    def _pool(self, x, batch):
+        """
+        apply different pooling methods depending on the definitions of the pooling defined
+        in init 
+        """
+        if self.pooling == "mean":
+            return global_mean_pool(x, batch)
+        elif self.pooling == "max":
+            return global_max_pool(x, batch)
+        else:
+            return global_add_pool(x, batch)
+        
+    def forward(self,
+                x: torch.Tensor,
+                edge_index: torch.Tensor,
+                batch: torch.Tensor) -> None:  # what to return here
+
+        # The first convolutional layer 
         x = self.conv1(x, edge_index)
         x = F.leaky_relu(x)
         # additional gcn layers
@@ -69,11 +85,15 @@ class GCNLayer(nn.Module):
             x = conv(x, edge_index)
             x = F.relu(x)
 
-        x = global_mean_pool(x, batch)
+        x = self._pool(x, batch)
         # multi level perceptron for final prediction
         x = F.relu(self.lin1(x))
-        x = self.lin2(x)
+        x = self.lin2(x) # [num_graphs, out_channels]
         return x
+
+
+
+# Will be working on this next
 
 
 class GINLayer(nn.Module):

@@ -7,8 +7,6 @@ from rdkit import Chem
 
 from mol_functions import mol_to_graph, fix_tg_units, canon_polymer_smiles, load_official, load_tc_dataset, load_tg_dataset, load_ffv_dataset, resolve_conflicts, rdkit_globals
 
-
-
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
