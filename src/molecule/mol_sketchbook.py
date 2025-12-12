@@ -36,6 +36,32 @@ class GCNLayer(nn.Module):
     - Initial GCN layer to process input node features
     - Optional multiple hidden GCN layers
     - Global mean pooling to get graph level representation
+
+
+    Why does the GNN layer need both x and edge_index?
+
+    1. For each node, look up its neighbours from edge_index
+
+    2. Collect their features from x
+
+    3. Aggregate (sum/mean/max)
+
+    4. Apply a linear transform (weights)
+
+    ---
+
+    Reminder about pytorch training loops:
+
+    1. Forward pass: The model goes through all of the training data once, performing its forward() function
+       calculations
+
+    2. Calculate the loss - The model's outputs (predictions) are compared to the ground truth and evaluated to see how
+       wrong they are
+
+    3. Zero gradients - The optimizers gradients are set to zero (they are accumulated by default) so they can be
+                        recalculated for the specific training step
+
+    
     """
 
     def __init__(self,
@@ -63,7 +89,9 @@ class GCNLayer(nn.Module):
     def _pool(self, x, batch):
         """
         apply different pooling methods depending on the definitions of the pooling defined
-        in init 
+        in init
+
+        What advantages/disadvantages do we have with each pooling methodology?
         """
         if self.pooling == "mean":
             return global_mean_pool(x, batch)
@@ -92,10 +120,7 @@ class GCNLayer(nn.Module):
         return x
 
 
-
 # Will be working on this next
-
-
 class GINLayer(nn.Module):
     """
     Graph Isomorphism Network for graph-level regression.
@@ -165,7 +190,6 @@ class GINELayer(nn.Module):
 
     Need to get a breakdown on this
     """
-
     def __init__(
         self,
         in_channels,
