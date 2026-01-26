@@ -9,12 +9,18 @@ from mol_functions import mol_to_graph, fix_tg_units, canon_polymer_smiles, load
 
 
 
-from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from mol_torch_gnn_implementation import (
     GINELayerUpgraded,
     train_and_evaluate_edge,  # cleaned version with align_targets + mask support
+)
+from mol_multitask_utils import (
+    attach_multitask_targets,
+    compute_scalers,
+    counts_from_loader,
+    ranges_from_minmax_dict,
+    split_df,
 )
 
 from sklearn.preprocessing import StandardScaler
@@ -68,32 +74,6 @@ def ranges_from_frame(df: pd.DataFrame, properties, device, p_low=1.0, p_high=99
         lo, hi = np.percentile(s, [p_low, p_high])
         rs.append(max(float(hi - lo), 1e-8))
     return torch.tensor(rs, dtype=torch.float32, device=device)
-
-
-def ranges_from_minmax_dict(minmax_dict, device):
-    mins = torch.tensor(
-        [float(minmax_dict[p][0]) for p in PROPERTIES],
-        dtype=torch.float32,
-        device=device,
-    )
-    maxs = torch.tensor(
-        [float(minmax_dict[p][1]) for p in PROPERTIES],
-        dtype=torch.float32,
-        device=device,
-    )
-    return (maxs - mins).clamp_min(1e-8)
-
-
-def counts_from_loader(loader, device):
-    cnt = torch.zeros(NUM_TASKS, dtype=torch.float32, device=device)
-    for batch in loader:
-        m = getattr(batch, "y_mask", None)
-        if m is None:
-            m = (~torch.isnan(batch.y)).float()
-        if m.dim() == 1:
-            m = m.view(-1, 1)
-        cnt += m.sum(dim=0).to(device)
-    return cnt.clamp_min(1.0)
 
 
 def attach_u(df):
@@ -163,55 +143,6 @@ class ContestWMAE(nn.Module):
         return per_sample.mean()
 
 
-# ---------------------------
-# Utils
-# ---------------------------
-
-
-def split_df(df: pd.DataFrame, train=0.8, val=0.1, seed: int = SEED):
-    gen = torch.Generator().manual_seed(seed)
-    idx = torch.randperm(len(df), generator=gen)
-    n = len(df)
-    i_tr = idx[: int(train * n)]  # Generate training index
-    i_va = idx[int(train * n) : int((train + val) * n)]  # Generate validation index
-    i_te = idx[int((train + val) * n) :]  # Generate test index
-    return df.iloc[i_tr].copy(), df.iloc[i_va].copy(), df.iloc[i_te].copy()
-
-
-def compute_scalers(df_train: pd.DataFrame) -> dict:
-    """ """
-    scalers = {}
-    for p in PROPERTIES:
-        s = pd.to_numeric(df_train[p], errors="coerce")
-        mu = s.mean(skipna=True)
-        sd = s.std(skipna=True)
-        if pd.isna(sd) or sd == 0:
-            sd = 1.0
-        scalers[p] = (float(mu), float(sd))
-    return scalers
-
-
-def attach_multitask_targets(df: pd.DataFrame, scalers) -> pd.DataFrame:
-    """ """
-    df = df.copy()
-    for i, row in df.iterrows():
-        g: Data = row["graph"]
-        y_vals, y_mask = [], []
-        for p in PROPERTIES:
-            val = row.get(p, None)
-            if pd.notna(val):
-                mu, sd = scalers[p]
-                y_vals.append((float(val) - mu) / sd)  # z-score
-                y_mask.append(1.0)
-            else:
-                y_vals.append(0.0)  # ignored by mask
-                y_mask.append(0.0)
-        g.y = torch.tensor(y_vals, dtype=torch.float)  # [T]
-        g.y_mask = torch.tensor(y_mask, dtype=torch.float)  # [T]
-        df.at[i, "graph"] = g
-    return df
-
-
 def make_loaders(df_train, df_val, df_test, batch_size=BATCH_SIZE):
     train_loader = DataLoader(
         df_train["graph"].tolist(), batch_size=batch_size, shuffle=True
@@ -277,12 +208,12 @@ u_scaler = StandardScaler().fit(u_train)
 
 # Split and scale (train-only stats)
 df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
-scalers = compute_scalers(df_train)
+scalers = compute_scalers(df_train, PROPERTIES)
 
 # Attach multi-task targets + masks
-df_train = attach_multitask_targets(df_train, scalers)
-df_val = attach_multitask_targets(df_val, scalers)
-df_test = attach_multitask_targets(df_test, scalers)
+df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
+df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
+df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
 
 
 df_train = attach_u(df_train)
@@ -296,7 +227,9 @@ train_loader, val_loader, test_loader = make_loaders(
 # Define device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-ranges_trainval = ranges_from_minmax_dict(MINMAX_DICT, device)  # r_i (original units)
+ranges_trainval = ranges_from_minmax_dict(
+    MINMAX_DICT, PROPERTIES, device
+)  # r_i (original units)
 
 ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
 ranges_val   = ranges_from_frame(df_val,   PROPERTIES, device)
@@ -304,9 +237,9 @@ ranges_test  = ranges_from_frame(df_test,  PROPERTIES, device)
 
 
 
-n_train = counts_from_loader(train_loader, device)
-n_val = counts_from_loader(val_loader, device)
-n_test = counts_from_loader(test_loader, device)
+n_train = counts_from_loader(train_loader, NUM_TASKS, device)
+n_val = counts_from_loader(val_loader, NUM_TASKS, device)
+n_test = counts_from_loader(test_loader, NUM_TASKS, device)
 
 mu = torch.tensor(
     [scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device

@@ -1,1 +1,32 @@
-Deriving a QSAR equation
+# Chemiinformatics_work
+
+This workspace contains the main `Chemistry2quant` project alongside this top-level README.
+Use the structure below to navigate the repository quickly.
+
+## Repository layout
+
+```
+Chemiinformatics_work/
+├── Chemistry2quant/
+│   ├── AUTHORS.rst
+│   ├── CHANGELOG.rst
+│   ├── LICENSE.txt
+│   ├── README.rst
+│   ├── docs/
+│   ├── psi4numpy/
+│   ├── requirements.txt
+│   ├── setup.cfg
+│   ├── setup.py
+│   ├── src/
+│   │   └── molecule/
+│   └── test/
+└── README
+```
+
+## Key directories
+
+- `Chemistry2quant/`: Primary Python package, docs, and experiments.
+- `Chemistry2quant/src/molecule/`: Molecule-focused ML and graph workflows.
+- `Chemistry2quant/psi4numpy/`: Psi4NumPy tutorial content.
+- `Chemistry2quant/docs/`: Project documentation sources.
+- `Chemistry2quant/test/`: Tests and checks.
