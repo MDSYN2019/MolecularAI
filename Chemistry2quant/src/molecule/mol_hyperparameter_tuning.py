@@ -3,7 +3,6 @@ from functools import partial
 import optuna
 import pandas as pd
 import torch
-import torch.nn as nn
 
 from mol_functions import (
     mol_to_graph,
@@ -11,15 +10,6 @@ from mol_functions import (
 
 from mol_implementation_competition import compute_ml_dataset, property_to_compute
 from mol_torch_gnn_implementation import GINELayer, train_and_evaluate_edge
-
-
-class RMSELoss(nn.Module):
-    def __init__(self, reduction="mean"):
-        super(RMSELoss, self).__init__()
-        self.mse_loss = nn.MSELoss(reduction=reduction)
-
-    def forward(self, input, target):
-        return torch.sqrt(self.mse_loss(input, target))
 
 
 """

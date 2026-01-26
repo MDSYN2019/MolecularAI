@@ -23,6 +23,12 @@ A longer description of your project goes here...
 
 Work in progress
 
+PyTorch Geometric (molecules)
+=============================
+
+For a clean, step-by-step learning path through the PyTorch Geometric molecular work,
+see ``src/molecule/README.md``.
+
 Note
 ====
 
