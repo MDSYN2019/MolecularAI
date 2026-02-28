@@ -1,14 +1,31 @@
-from rdkit import Chem, DataStructs
+"""Utilities for lightweight RDKit + scikit-learn examples.
+
+This module used to execute demo code at import time. It now provides small,
+reusable helper functions for generating Morgan fingerprints.
+"""
+
+from rdkit import Chem
 from rdkit.Chem import AllChem
-from sklearn.ensemble import RandomForestClassifier
-import numpy
-import numpy as np
-
-m1 = Chem.MolFromSmiles('c1ccccc1')
-m2 = Chem.MolFromSmiles('c1ccccc1CC')
-m3 = Chem.MolFromSmiles('c1ccncc1')
-m4 = Chem.MolFromSmiles('c1ccncc1CC')
-mols = [m1, m2, m3, m4]
-fps = [AllChem.GetMorganFingerprintAsBitVect(m, 2) for m in mols]
 
 
+DEFAULT_SMILES = (
+    "c1ccccc1",
+    "c1ccccc1CC",
+    "c1ccncc1",
+    "c1ccncc1CC",
+)
+
+
+def mols_from_smiles(smiles_list=DEFAULT_SMILES):
+    """Convert an iterable of SMILES strings into RDKit molecule objects."""
+    return [Chem.MolFromSmiles(smiles) for smiles in smiles_list]
+
+
+def morgan_fingerprints(mols, radius=2):
+    """Create Morgan bit-vector fingerprints from a list of molecules."""
+    return [AllChem.GetMorganFingerprintAsBitVect(mol, radius) for mol in mols if mol is not None]
+
+
+def demo_fingerprints():
+    """Generate demo fingerprints for a tiny built-in molecule set."""
+    return morgan_fingerprints(mols_from_smiles())

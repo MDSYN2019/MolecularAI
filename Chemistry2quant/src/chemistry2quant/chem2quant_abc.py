@@ -1,10 +1,12 @@
-"""
-Define abstract classes for other classes to use here
-"""
+"""Abstract base classes for molecular modelling workflows."""
+
 from abc import ABC, abstractmethod
 
-class molecular_modelling(ABC):
+
+class MolecularModelling(ABC):
+    """Common interface for modelling implementations."""
+
     @abstractmethod
-    def placeholderself):
-        pass
-    
+    def placeholder(self):
+        """Provide a minimal overridable hook for subclasses."""
+        raise NotImplementedError
