@@ -74,7 +74,6 @@ async def execute_molecular_filter(
     if results:
         return results
 
-
 async def list_tables():
     result = await connect_to_db(
         "SELECT table_schema, table_name FROM from information_schema.tables"

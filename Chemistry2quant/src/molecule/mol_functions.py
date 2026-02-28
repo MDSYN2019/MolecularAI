@@ -1,5 +1,6 @@
 # Performance debugging
 # rdkit for molecular modelling
+
 import logging
 import pandas as pd
 import networkx as nx
@@ -16,13 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from mol_functions_chem import featurize_molecule_atoms
 
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
-
-
-
 logging.basicConfig(level=logging.INFO)
-
-
-
 
 BOND_TYPE_TO_IDX = {
     rdchem.BondType.SINGLE: 0,
@@ -610,53 +605,3 @@ def resolve_conflicts(group: pd.DataFrame) -> pd.Series:
             out[p] = pd.NA
     # return a Series so GroupBy.apply can stack resu
     return pd.Series(out)
-# -------- load everything --------
-#official = load_official(TRAIN_CSV)
-#
-#supp_frames = []
-#
-## dataset1.csv (Tc)
-#supp_frames.append(load_tc_dataset("dataset1.csv"))
-#
-## the “MILES only” list (no labels) – skip for supervised training.
-## If you want to use it for self-supervised pretraining, keep it separate.
-#
-## dataset3.csv (Tg)
-#supp_frames.append(load_tg_dataset("dataset3.csv"))
-#
-## dataset4.csv (FFV) – adjust header_has_names if yours has no header line
-#supp_frames.append(load_ffv_dataset("dataset4.csv", header_has_names=False))
-#
-## concat
-#big = pd.concat([official] + supp_frames, ignore_index=True, sort=False)
-#
-## canonicalize SMILES and drop rows that fail to parse
-#big["SMILES"] = big["SMILES"].map(canon_polymer_smiles)
-#big = big[big["SMILES"].notna()].copy()
-#
-## resolve duplicates/conflicts at SMILES level
-#merged = (
-#    big.groupby("SMILES", as_index=True)
-#       .apply(resolve_conflicts)
-#       .reset_index(drop=True)
-#)
-#
-## if you still want to keep IDs from official rows, you can merge back:
-## merged = merged.merge(official[["SMILES","id"]], on="SMILES", how="left")
-
-# final sanity checks
-# clip FFV to [0,1], drop impossible densities, etc.
-#if "FFV" in merged.columns:
-#    merged.loc[merged["FFV"].notna(), "FFV"] = merged["FFV"].clip(0.0, 1.0)
-#if "Density" in merged.columns:
-#    merged.loc[merged["Density"].notna(), "Density"] = merged["Density"].clip(lower=0.3, upper=3.0)
-#
-## optional: run fix_tg_units once more on the combined table
-#merged = fix_tg_units(merged, tg_col="Tg")
-#
-## you can now use `merged` as your training table
-## and build PyG graphs:
-#from torch_geometric.data import Data
-#merged["graph"] = merged["SMILES"].apply(mol_to_graph)
-
-# then proceed with your existing split + attach_multitask_targets pipeline

@@ -1,5 +1,4 @@
 import logging
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,8 +7,6 @@ import tqdm as tqdm
 # Performance debugging
 # rdkit for molecular modelling
 from rdkit import Chem
-from rdkit.Chem.Scaffolds import MurckoScaffold
-from torch_geometric.data import DataLoader
 from torch_geometric.datasets import MoleculeNet
 from torch_geometric.nn import (
     GCNConv,
@@ -33,35 +30,28 @@ class GCNLayer(nn.Module):
     """
     Basic graph convolution network for graph-level prediction
 
-    - Initial GCN layer to process input node features
-    - Optional multiple hidden GCN layers
-    - Global mean pooling to get graph level representation
+    - Input GCN Layer
+    - Optional hidden GCN layers
+    - Global pooling -> graph embedding
+    - MLP for final prediction 
     """
 
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2):
-        super(GCNLayer, self).__init__()
-        # The input layer
+        super().__init__()
+
+        # The first GCN layer 
         self.conv1 = GCNConv(in_channels, hidden_channels)
 
-        # hidden layers - I think with this we can just build a layer of hidden layers?
-
+        # Additional GCN Layers
         self.convs = nn.ModuleList()
-        for _ in range(num_layers - 1):
+        for _ in range(num_layers - 1): # add num_layers - 1 hidden layers 
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
-
-        # doing mean pooling here
-
-        # x = global_mean_pool(x, batch)
-        # max pool
-        global_max_pool(x, batch)
-        # sum pool
-        # x = global_add_pool(x, batch)
-
-        # Output layer
+            
+        # MLP head 
         self.lin1 = nn.Linear(hidden_channels, hidden_channels)
         self.lin2 = nn.Linear(hidden_channels, out_channels)
 
-    def forward(self, x, edge_index, batch) -> None:  # what to return here
+    def forward(self, x, edge_index, batch) -> None:  
         x = self.conv1(x, edge_index)
         x = F.leaky_relu(x)
         # additional gcn layers

@@ -29,6 +29,8 @@ from mol_functions import (
     mol_to_graph,
 )
 
+from mol_models import GCNLayer
+
 """
 GNNs are specific layers that input a graph and output a graph. 
 For each atom(node), we need to define a feature vector.
