@@ -25,8 +25,8 @@ import deepchem as dc
 import pandera as pa
 
 # inhouse classes
-from chem2quant_abc import molecular_modelling_neural_network
-from chem2quant_pandas import PostgresConnect
+from mol_abc import molecular_modelling_neural_network
+from mol_pandas import PostgresConnect
 
 
 class GCNLayer(tf.keras.layers.Layer):
