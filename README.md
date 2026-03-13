@@ -1,4 +1,4 @@
-# Chemiinformatics_work
+# MolecularAI
 
 ![MolecularAI project logo](assets/molecularai-logo.svg)
 
