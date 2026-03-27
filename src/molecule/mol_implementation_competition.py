@@ -2,7 +2,6 @@
 import pandas as pd
 import torch
 import numpy as np
-import torch.nn as nn
 from rdkit import Chem
 
 from mol_functions import mol_to_graph, fix_tg_units, canon_polymer_smiles, load_official, load_tc_dataset, load_tg_dataset, load_ffv_dataset, resolve_conflicts, rdkit_globals
@@ -15,6 +14,7 @@ from mol_torch_gnn_implementation import (
     GINELayerUpgraded,
     train_and_evaluate_edge,  # cleaned version with align_targets + mask support
 )
+from mol_losses import ContestWMAE
 from mol_multitask_utils import (
     attach_multitask_targets,
     compute_scalers,
@@ -101,47 +101,6 @@ def attach_u(df):
         g.u = u_vec                                   # attach to existing Data
 
     return df
-
-
-class ContestWMAE(nn.Module):
-    """
-    Contest wMAE (exact):
-      loss = mean_over_batch( sum_i w_i * |pred_i - target_i| * mask_i )
-    with w_i = (1 / r_i) * ( K / sqrt(n_i) ) / sum_j(1 / sqrt(n_j))
-
-    Args
-    ----
-    ranges: tensor [T] with r_i (max - min) in ORIGINAL units
-    counts: tensor [T] with n_i (label counts for this split)
-    inverse_transform: optional callable mapping standardized -> original units
-    """
-
-    def __init__(
-        self,
-        ranges: torch.Tensor,
-        counts: torch.Tensor,
-        inverse_transform=None,
-        eps: float = 1e-8,
-    ):
-        super().__init__()
-        T = ranges.numel()
-        inv_r = (1.0 / ranges.clamp_min(eps)).float()
-        inv_sqrt_n = (1.0 / torch.sqrt(counts.clamp_min(1.0))).float()
-        alpha = T / inv_sqrt_n.sum().clamp_min(eps)  # normalizes sum_j(...) to K=T
-        w = inv_r * inv_sqrt_n * alpha  # [T]
-        self.register_buffer("weights", w)
-        self.inverse_transform = inverse_transform
-
-    def forward(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor):
-        # pred/target/mask: [B, T]
-        if self.inverse_transform is not None:
-            pred = self.inverse_transform(pred)
-            target = self.inverse_transform(target)
-
-        abs_err = (pred - target).abs() * mask  # [B, T]
-        per_sample = (abs_err * self.weights).sum(dim=1)  # [B]
-        return per_sample.mean()
-
 
 def make_loaders(df_train, df_val, df_test, batch_size=BATCH_SIZE):
     train_loader = DataLoader(

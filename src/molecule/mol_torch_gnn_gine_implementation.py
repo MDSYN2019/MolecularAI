@@ -7,7 +7,7 @@ from torch_geometric.loader import DataLoader
 
 from mol_functions import mol_to_graph, fix_tg_units
 from mol_torch_gnn_implementation import GINELayerUpgraded, train_and_evaluate_edge
-from mol_implementation_competition import ContestWMAE  # or inline the class from your script
+from mol_losses import ContestWMAE
 from mol_multitask_utils import (
     attach_multitask_targets,
     compute_scalers,
