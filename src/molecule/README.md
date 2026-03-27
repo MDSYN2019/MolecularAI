@@ -36,6 +36,7 @@ intuition from data prep → graph construction → modeling → training/tuning
    - `mol_troubleshooting.py` (debug notes and utility snippets)
    - `mol_feature_store.py`, `mol_features.py`, `mol_functions.py` (feature experiments)
    - `mol_xgboost_model.py` (non-GNN baseline)
+   - `mol_mlops_template.py` (MLOps scaffold generator + simple run tracker)
 
 ## Concept map (what each file teaches)
 
@@ -61,3 +62,21 @@ intuition from data prep → graph construction → modeling → training/tuning
 
 Start with step 1 and step 2 only. Once you can explain how a SMILES string becomes
 `x`, `edge_index`, and `edge_attr`, the rest of the files become much easier to follow.
+
+## New: MLOps template for polymer GNN experiments
+
+You can scaffold a reproducible experiment layout for your polymer prediction workflow:
+
+```bash
+python src/molecule/mol_mlops_template.py --root-dir polymer_gnn_mlops
+```
+
+This creates:
+
+- `configs/` with a base JSON config (`polymer_gnn.base.json`)
+- `data/raw` and `data/processed` folders
+- `artifacts/models` and `artifacts/reports`
+- `runs/` for parameter + metric tracking
+
+The `ExperimentTracker` class in `mol_mlops_template.py` gives a lightweight logging API
+that you can call from your existing training scripts without introducing extra dependencies.
