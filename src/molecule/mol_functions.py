@@ -39,13 +39,6 @@ BOND_DIR_TO_IDX = {
     rdchem.BondDir.ENDUPRIGHT:   4,
 }
 
-bond_type_to_idx = {
-    Chem.rdchem.BondType.SINGLE: 0,
-    Chem.rdchem.BondType.DOUBLE: 1,
-    Chem.rdchem.BondType.TRIPLE: 2,
-    Chem.rdchem.BondType.AROMATIC: 3,
-}
-
 HYB_CHOICES = [
     Chem.rdchem.HybridizationType.SP,
     Chem.rdchem.HybridizationType.SP2,
@@ -108,6 +101,7 @@ RD_FEATURES = [
 ]
 
 def rdkit_globals(smiles: str) -> np.ndarray:
+    """Compute a compact vector of global RDKit descriptors for one molecule."""
     m = Chem.MolFromSmiles(smiles)
     if m is None:
         return np.zeros(len(RD_FEATURES), dtype=np.float32)
@@ -116,10 +110,12 @@ def rdkit_globals(smiles: str) -> np.ndarray:
 
 
 def randomize_smiles(s):
+    """Generate a randomized (non-canonical) SMILES augmentation when possible."""
     m = Chem.MolFromSmiles(s)
     return Chem.MolToSmiles(m, doRandom=True, canonical=False) if m else s
 
 def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
+    """Convert adjacency + labels into a simple NetworkX undirected graph."""
     G = nx.Graph()
     for i, label in enumerate(node_labels):
         G.add_node(i, label=label)
@@ -132,6 +128,7 @@ def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
 
 
 def graph_descriptors(mol):
+    """Graph-level descriptors used as global conditioning features."""
     return torch.tensor([
         Descriptors.MolWt(mol),
         Descriptors.MolLogP(mol),
@@ -187,6 +184,11 @@ def featurize_atom(atom):
 
 
 def smiles_to_graph(smiles_mol, elements=["C", "O", "N", "H", "Other"]):
+    """
+    Build a lightweight one-hot atom graph representation from an RDKit molecule.
+
+    Returns node one-hots, adjacency matrix, edge one-hots and directed edge index tuples.
+    """
     if smiles_mol is None:
         raise ValueError(f"Invalid Smiles String: {smiles_mol}")
 
@@ -202,13 +204,16 @@ def smiles_to_graph(smiles_mol, elements=["C", "O", "N", "H", "Other"]):
     adjacency, edge_features, edge_indices = create_adjacency_matrix(n_atoms, mol)
     return node_features, adjacency, edge_features, edge_indices
 
+def _append_undirected_edge(edge_features, edge_indices, feat, i, j):
+    """Store an undirected bond as two directed edges for PyG compatibility."""
+    edge_features.append(feat)
+    edge_indices.append((i, j))
+    edge_features.append(feat)
+    edge_indices.append((j, i))
+
+
 def create_adjacency_matrix(n_atoms, mol):
-    bond_type_to_idx = {
-        Chem.rdchem.BondType.SINGLE: 0,
-        Chem.rdchem.BondType.DOUBLE: 1,
-        Chem.rdchem.BondType.TRIPLE: 2,
-        Chem.rdchem.BondType.AROMATIC: 3,
-    }
+    """Create adjacency and one-hot bond features from an RDKit molecule."""
     adjacency = np.zeros((n_atoms, n_atoms), dtype=np.float32)
     edge_features, edge_indices = [], []
 
@@ -216,16 +221,14 @@ def create_adjacency_matrix(n_atoms, mol):
         i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
         adjacency[i, j] = adjacency[j, i] = 1.0
 
-        feat = np.zeros(len(bond_type_to_idx), dtype=np.float32)
+        feat = np.zeros(len(BOND_TYPE_TO_IDX), dtype=np.float32)
         bt = bond.GetBondType()
-        if bt in bond_type_to_idx:
-            feat[bond_type_to_idx[bt]] = 1.0
+        if bt in BOND_TYPE_TO_IDX:
+            feat[BOND_TYPE_TO_IDX[bt]] = 1.0
 
-        # undirected → add both directions
-        edge_features.append(feat); edge_indices.append((i, j))
-        edge_features.append(feat); edge_indices.append((j, i))
+        _append_undirected_edge(edge_features, edge_indices, feat, i, j)
 
-    edge_features = np.array(edge_features, dtype=np.float32) if edge_features else np.empty((0, len(bond_type_to_idx)), dtype=np.float32)
+    edge_features = np.array(edge_features, dtype=np.float32) if edge_features else np.empty((0, len(BOND_TYPE_TO_IDX)), dtype=np.float32)
     return adjacency, edge_features, edge_indices
 
 
@@ -275,7 +278,7 @@ def get_molecular_properties(mol):
     return property_dictionary
 
 
-def advanced_smiles_to_graph(smiles : str, bond_type_to_idx=bond_type_to_idx):
+def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
     """
     We have defined the bond_type_to_idx above as a general definition
 
@@ -385,12 +388,13 @@ def advanced_smiles_to_graph(smiles : str, bond_type_to_idx=bond_type_to_idx):
         # Combine all bond features
         features = np.concatenate([bond_type_onehot, [is_conjugated, is_in_ring]])
 
-        # Add edge in both directions (undirected graph)
-        edge_features.append(features)
-        edge_indices.append((begin_idx, end_idx))
-
-        edge_features.append(features)  # Same feature for the reverse direction
-        edge_indices.append((end_idx, begin_idx))
+        _append_undirected_edge(
+            edge_features,
+            edge_indices,
+            features,
+            begin_idx,
+            end_idx,
+        )
 
     # Convert edge features to numpy array
     if edge_features:
@@ -418,6 +422,7 @@ def smiles_to_pytorch_graph(smiles):
 
 
 def mol_to_graph(smiles: str) -> Data:
+    """Convert SMILES into a PyG Data object with atom, bond and global features."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         raise ValueError(f"Invalid SMILES string: {smiles}")
