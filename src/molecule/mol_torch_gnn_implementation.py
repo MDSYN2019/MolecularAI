@@ -1,3 +1,19 @@
+
+"""
+GNNs are specific layers that input a graph and output a graph. 
+For each atom(node), we need to define a feature vector.
+For example:
+
+Atom type.
+Formal charge.
+Hybridization State.
+Aromaticity.
+Number of connected hydrogens.
+
+=> Each row represents one atom in the molecule, with it's feature encoded
+
+"""
+
 import logging
 import time
 
@@ -30,24 +46,6 @@ from mol_functions import (
 )
 
 from mol_models import GCNLayer
-
-"""
-GNNs are specific layers that input a graph and output a graph. 
-For each atom(node), we need to define a feature vector.
-For example:
-
-Atom type.
-Formal charge.
-Hybridization State.
-Aromaticity.
-Number of connected hydrogens.
-
-What does each row in the node feature matrix represent?
-
-=> Each row represents one atom in the molecule, with it's feature encoded
-"""
-
-
 
 class MaskedWeightedScaledMAE(nn.Module):
     """
@@ -539,10 +537,6 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #        
 #        return self.mlp_out(g)
 
-from torch_geometric.nn import (
-    GINEConv, GlobalAttention,
-    global_mean_pool, global_add_pool, global_max_pool
-)
 
 class GINELayerUpgraded(nn.Module):
     """
@@ -957,206 +951,6 @@ def train_and_evaluate_edge(
         "test_r2": test_r2,
         "model": model,
     }
-
-
-#def train_and_evaluate_edge(
-#    model,
-#    optimizer,
-#    criterion_train,
-#    criterion_eval,
-#    criterion_test,
-#    train_loader,
-#    val_loader,
-#    test_loader,
-#    epochs=200,
-#    early_stopping=True,
-#    device=None,
-#    eval_every=5,  # validate every N epochs
-#    use_amp=True,  # mixed precision on CUDA
-#    scheduler=None,
-#):
-#    """
-#    Faster train+eval for (edge-aware) GNNs.
-#    - Multi-task with optional masks (data.y_mask or NaN->mask)
-#    - Shape alignment via align_targets(out, y, y_mask)
-#    - Contest-aligned losses: pass split-specific criteria
-#    """
-#    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#    model.to(device)
-#
-#    amp_enabled = use_amp and (device.type == "cuda")
-#    scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
-#    
-#    def forward_model(data, training: bool):
-#        if training:
-#        # in-place drop edges on a shallow clone to avoid leaking into val/test
-#            data = data.clone()
-#            data = drop_edges_(data, p=0.1)  # try 0.05–0.2
-#        if hasattr(data, "edge_attr") and data.edge_attr is not None:
-#            return model(data.x.float(), data.edge_index, data.edge_attr.float(), data.batch)
-#        else:
-#            return model(data.x.float(), data.edge_index, data.batch)
-#    #def forward_model(data):
-#    #    if hasattr(data, "edge_attr") and data.edge_attr is not None:
-#    #        return model(
-#    #            data.x.float(), data.edge_index, data.edge_attr.float(), data.batch
-#    #        )
-#    #    else:
-#    #        return model(data.x.float(), data.edge_index, data.batch)
-#    def _masked_flat(pred, target, mask):
-#        if mask is None:
-#            return pred.reshape(-1), target.reshape(-1)
-#        m = mask > 0
-#        return pred[m], target[m]
-#
-#    def _masked_mae(pred, target, mask):
-#        p, t = _masked_flat(pred, target, mask)
-#        if p.numel() == 0:
-#            return float("nan")
-#        return torch.mean(torch.abs(p - t)).item()
-#
-#    def _masked_r2(pred, target, mask):
-#        p, t = _masked_flat(pred, target, mask)
-#        if p.numel() == 0:
-#            return float("nan")
-#        ss_res = torch.sum((t - p) ** 2)
-#        ss_tot = torch.sum((t - torch.mean(t)) ** 2)
-#        return (1 - ss_res / ss_tot).item() if ss_tot != 0 else float("nan")
-#
-#    train_losses, val_losses = [], []
-#    best_val, best_state = float("inf"), None
-#    # Not sure what patience means 
-#    patience, patience_counter = 10, 0
-#
-#    for epoch in range(1, epochs + 1):
-#        # ---------- Train ----------
-#        model.train()
-#        t0 = time.time()
-#        running, train_graphs = 0.0, 0
-#
-#        for data in train_loader:
-#            data = data.to(device)
-#            optimizer.zero_grad(set_to_none=True)
-#
-#            with torch.cuda.amp.autocast(enabled=amp_enabled):
-#                out = forward_model(data, training = True)
-#                y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-#                if y_mask is None:  # NaN -> mask
-#                    y_mask = (~torch.isnan(y_raw)).float()
-#                    y_raw = torch.nan_to_num(y_raw, nan=0.0)
-#                y, y_mask = align_targets(out, y_raw, y_mask)
-#                loss = criterion_train(out, y, y_mask)  # train weights
-#
-#            scaler.scale(loss).backward()
-#            scaler.step(optimizer)
-#            scaler.update()
-#
-#            running += loss.item() * data.num_graphs
-#            train_graphs += data.num_graphs
-#
-#        train_loss = running / max(1, train_graphs)
-#        train_losses.append(train_loss)
-#        t1 = time.time()
-#        train_speed = train_graphs / (t1 - t0 + 1e-6)
-#
-#        # ---------- Validation (every eval_every epochs) ----------
-#        do_val = (epoch % eval_every == 0) or (epoch == epochs)
-#        if do_val:
-#            model.eval()
-#            running, val_graphs = 0.0, 0
-#            with torch.no_grad():
-#                for data in val_loader:
-#                    data = data.to(device)
-#                    with torch.cuda.amp.autocast(enabled=amp_enabled):
-#                        out = forward_model(data, training = False)
-#                        y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-#                        if y_mask is None:  # NaN -> mask
-#                            y_mask = (~torch.isnan(y_raw)).float()
-#                            y_raw = torch.nan_to_num(y_raw, nan=0.0)
-#                        y, y_mask = align_targets(out, y_raw, y_mask)
-#                        loss = criterion_eval(out, y, y_mask)  # eval weights
-#                    running += loss.item() * data.num_graphs
-#                    val_graphs += data.num_graphs
-#            val_loss = running / max(1, val_graphs)
-#            val_losses.append(val_loss)
-#
-#            print(
-#                f"Epoch {epoch:04d} | Train {train_loss:.4f} "
-#                f"({train_speed:.1f} graphs/s) | Val {val_loss:.4f}"
-#            )
-#
-#            if early_stopping:
-#                if val_loss + 1e-9 < best_val:
-#                    best_val = val_loss
-#                    best_state = {
-#                        k: v.detach().cpu().clone()
-#                        for k, v in model.state_dict().items()
-#                    }
-#                    patience_counter = 0
-#                else:
-#                    patience_counter += 1
-#                    if patience_counter >= patience:
-#                        print(
-#                            f"Early stopping at epoch {epoch}. Best Val {best_val:.4f}"
-#                        )
-#                        break
-#        else:
-#            print(
-#                f"Epoch {epoch:04d} | Train {train_loss:.4f} ({train_speed:.1f} graphs/s)"
-#            )
-#
-#    # Restore best (if early-stopped)
-#    if early_stopping and best_state is not None:
-#        model.load_state_dict(best_state)
-#
-#    # ---------- Test ----------
-#    model.eval()
-#    test_running, test_graphs = 0.0, 0
-#    preds, targets, masks = [], [], []
-#
-#    with torch.no_grad():
-#        for data in test_loader:
-#            data = data.to(device)
-#            with torch.cuda.amp.autocast(enabled=amp_enabled):
-#                out = forward_model(data, training = False)
-#                y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-#                if y_mask is None:  # NaN -> mask
-#                    y_mask = (~torch.isnan(y_raw)).float()
-#                    y_raw = torch.nan_to_num(y_raw, nan=0.0)
-#                y, y_mask = align_targets(out, y_raw, y_mask)
-#                loss = criterion_test(out, y, y_mask)  # test weights
-#            test_running += loss.item() * data.num_graphs
-#            test_graphs += data.num_graphs
-#            preds.append(out.cpu())
-#            targets.append(y.cpu())
-#            masks.append(None if y_mask is None else y_mask.cpu())
-#
-#    test_loss = test_running / max(1, test_graphs)  # this IS the contest wMAE on test
-#    preds = torch.cat(preds, dim=0)
-#    targets = torch.cat(targets, dim=0)
-#    ymask = (
-#        None
-#        if all(m is None for m in masks)
-#        else torch.cat(
-#            [m if m is not None else torch.ones_like(preds) for m in masks], dim=0
-#        )
-#    )
-#    test_mae = _masked_mae(
-#        preds, targets, ymask
-#    )  # (in standardized units if you trained z-scored)
-#    test_r2 = _masked_r2(preds, targets, ymask)
-#
-#    return {
-#        "train_losses": train_losses,
-#        "val_losses": val_losses,
-#        "test_losses": test_loss,  # contest wMAE
-#        "test_preds": preds,
-#        "test_targets": targets,
-#        "test_mask": ymask,
-#        "test_mae": test_mae,
-#        "test_r2": test_r2,
-#        "model": model,
-#    }
 
 
 if __name__ == "__main__":
