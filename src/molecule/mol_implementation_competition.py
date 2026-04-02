@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import torch
+import logging
 from rdkit import Chem
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.loader import DataLoader
@@ -52,8 +53,13 @@ MINMAX_DICT = {
 }
 NUMERIC_COLS = ["Tg", "FFV", "Tc", "Density", "Rg"]
 
+logger = logging.getLogger(__name__)
+
 
 def add_weight_decay(model: torch.nn.Module, weight_decay: float):
+    """
+    weight decay function to add into our pytorch function
+    """
     decay, no_decay = [], []
     for name, param in model.named_parameters():
         if not param.requires_grad:
@@ -71,7 +77,6 @@ def add_weight_decay(model: torch.nn.Module, weight_decay: float):
         {"params": decay, "weight_decay": weight_decay},
         {"params": no_decay, "weight_decay": 0.0},
     ]
-
 
 def ranges_from_frame(
     df: pd.DataFrame,
@@ -99,19 +104,21 @@ def randomize_smiles(smiles: str) -> str:
 
 
 def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFrame:
+    """
+    Attaching the 'universal' features as listed in the rdkit list 
+    """
     df = df.copy().reset_index(drop=True)
     df["graph"] = df["graph"].astype(object)
 
     u_vectors = []
     for smiles in df["SMILES"]:
-        values = rdkit_globals(smiles)
-        values = u_scaler.transform(values.reshape(1, -1))[0]
-        u_vectors.append(torch.tensor(values, dtype=torch.float32))
-    df["u"] = u_vectors
+        values = rdkit_globals(smiles) # compute vector of RD_FEATURES 
+        values = u_scaler.transform(values.reshape(1, -1))[0] # transform the features with the standardscaler to normalize
+        u_vectors.append(torch.tensor(values, dtype=torch.float32)) # convert to pytorch tensor and append to output list 
+    df["u"] = u_vectors # insert into the pandas table 
 
     for idx, graph in df["graph"].items():
         graph.u = df.at[idx, "u"].unsqueeze(0)
-
     return df
 
 
@@ -121,6 +128,9 @@ def make_loaders(
     df_test: pd.DataFrame,
     batch_size: int = BATCH_SIZE,
 ):
+    """
+    Convert the pandas table into train, val and test loaders and shuffle the data before returning
+    """
     train_loader = DataLoader(df_train["graph"].tolist(), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(df_val["graph"].tolist(), batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(df_test["graph"].tolist(), batch_size=batch_size, shuffle=False)
@@ -128,6 +138,8 @@ def make_loaders(
 
 
 def build_training_frame() -> pd.DataFrame:
+    """
+    """
     official = load_official(TRAIN_CSV)
     supplemental = [
         load_tc_dataset("train_supplement/dataset1.csv"),
@@ -136,11 +148,13 @@ def build_training_frame() -> pd.DataFrame:
     ]
 
     combined = pd.concat([official] + supplemental, ignore_index=True, sort=False)
-    for col in NUMERIC_COLS:
+
+    
+    for col in NUMERIC_COLS: # loop through the numeric columns 
         combined[col] = pd.to_numeric(combined[col], errors="coerce")
 
-    combined["SMILES"] = combined["SMILES"].map(canon_polymer_smiles)
-    combined = combined[combined["SMILES"].notna()].copy()
+    combined["SMILES"] = combined["SMILES"].map(canon_polymer_smiles) # standardize the smiles
+    combined = combined[combined["SMILES"].notna()].copy() # generate a copy with non-na data
 
     combined.loc[combined["FFV"].notna(), "FFV"] = combined["FFV"].clip(0.0, 1.0)
     combined.loc[combined["Density"].notna(), "Density"] = combined["Density"].clip(
@@ -150,7 +164,6 @@ def build_training_frame() -> pd.DataFrame:
 
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
-
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
     combined["graph"] = combined["SMILES"].apply(mol_to_graph)
     return combined
@@ -168,7 +181,7 @@ def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> 
             test_graphs.append(graph)
             test_ids.append(int(row["id"]))
         except Exception as exc:
-            print(f"[WARN] failed SMILES idx={row.name} :: {exc}")
+            logger.info(f"[WARN] failed SMILES idx={row.name} :: {exc}")
 
     return DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False), test_ids
 
@@ -185,10 +198,10 @@ def predict(model, loader: DataLoader, device: torch.device, inv_std):
             if getattr(data, "edge_attr", None) is not None:
                 data.edge_attr = data.edge_attr.float()
             out = model(
-                data.x,
-                data.edge_index,
-                data.edge_attr,
-                batch=data.batch,
+                data.x, # node featues                 
+                data.edge_index, # edge indices 
+                data.edge_attr, # edge attribute 
+                batch=data.batch, 
                 u=getattr(data, "u", None),
             )
             chunks.append(inv_std(out).detach().cpu())
@@ -290,7 +303,7 @@ def main():
     )
 
     torch.save(model.state_dict(), "model_best.pt")
-    print(
+    logger.info(
         "Done. Test loss:",
         results["test_losses"],
         "MAE:",
@@ -315,8 +328,10 @@ def main():
         targets_z.to(criterion_test.weights.device),
         mask.to(criterion_test.weights.device),
     ).item()
-    print("Per-property MAE:", per_prop_mae.tolist())
-    print("Contest wMAE:", contest_wmae)
+
+    
+    logger.info("Per-property MAE:", per_prop_mae.tolist())
+    logger.info("Contest wMAE:", contest_wmae)
 
     test_df = pd.read_csv(TEST_CSV)
     test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)

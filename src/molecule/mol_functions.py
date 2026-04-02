@@ -101,7 +101,7 @@ RD_FEATURES = [
 ]
 
 def rdkit_globals(smiles: str) -> np.ndarray:
-    """Compute a compact vector of global RDKit descriptors for one molecule."""
+    "Compute a compact vector of global RDKit descriptors for one molecule"
     m = Chem.MolFromSmiles(smiles)
     if m is None:
         return np.zeros(len(RD_FEATURES), dtype=np.float32)
