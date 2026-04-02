@@ -1,30 +1,23 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+import numpy as np
 import pandas as pd
 import torch
-import numpy as np
 from rdkit import Chem
-
-from torch_geometric.loader import DataLoader
 from sklearn.preprocessing import StandardScaler
+from torch_geometric.loader import DataLoader
 
-# Loading custom mol functions for building features 
-from mol_functions import (mol_to_graph,
-                           fix_tg_units,
-                           canon_polymer_smiles,
-                           load_official,
-                           load_tc_dataset,
-                           load_tg_dataset,
-                           load_ffv_dataset,
-                           resolve_conflicts,
-                           rdkit_globals)
-
-from mol_torch_gnn_implementation import (
-    GINELayerUpgraded,
-    train_and_evaluate_edge,  # cleaned version with align_targets + mask support
+from mol_functions import (
+    canon_polymer_smiles,
+    load_ffv_dataset,
+    load_official,
+    load_tc_dataset,
+    load_tg_dataset,
+    mol_to_graph,
+    rdkit_globals,
 )
-
 from mol_losses import ContestWMAE
-
 from mol_multitask_utils import (
     attach_multitask_targets,
     compute_scalers,
@@ -32,16 +25,17 @@ from mol_multitask_utils import (
     ranges_from_minmax_dict,
     split_df,
 )
-
+from mol_torch_gnn_implementation import GINELayerUpgraded, train_and_evaluate_edge
 
 # ---------------------------
-# Environmental variables 
+# Configuration
 # ---------------------------
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 NUM_TASKS = len(PROPERTIES)
 PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025/molecule/"
 TRAIN_CSV = f"{PATH}/train.csv"
 TEST_CSV = f"{PATH}/test.csv"
+
 SEED = 42
 BATCH_SIZE = 64
 HIDDEN = 384
@@ -56,352 +50,283 @@ MINMAX_DICT = {
     "Density": [0.748691234, 1.840998909],
     "Rg": [9.7283551, 34.672905605],
 }
+NUMERIC_COLS = ["Tg", "FFV", "Tc", "Density", "Rg"]
 
-def add_weight_decay(model, weight_decay):
+
+def add_weight_decay(model: torch.nn.Module, weight_decay: float):
     decay, no_decay = [], []
-    for n, p in model.named_parameters():
-        if not p.requires_grad:
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
             continue
-        if p.ndim == 1 or n.endswith('.bias') or 'norm' in n.lower() or 'bn' in n.lower():
-            no_decay.append(p)
+        if (
+            param.ndim == 1
+            or name.endswith(".bias")
+            or "norm" in name.lower()
+            or "bn" in name.lower()
+        ):
+            no_decay.append(param)
         else:
-            decay.append(p)
+            decay.append(param)
     return [
-        {'params': decay, 'weight_decay': weight_decay},
-        {'params': no_decay, 'weight_decay': 0.0},
+        {"params": decay, "weight_decay": weight_decay},
+        {"params": no_decay, "weight_decay": 0.0},
     ]
 
 
-def ranges_from_frame(df: pd.DataFrame, properties, device, p_low=1.0, p_high=99.0):
-    rs = []
-    for p in properties:
-        s = pd.to_numeric(df[p], errors="coerce").dropna()
-        if len(s) == 0:
-            rs.append(1.0)  # fallback
+def ranges_from_frame(
+    df: pd.DataFrame,
+    properties: list[str],
+    device: torch.device,
+    p_low: float = 1.0,
+    p_high: float = 99.0,
+) -> torch.Tensor:
+    ranges = []
+    for prop in properties:
+        series = pd.to_numeric(df[prop], errors="coerce").dropna()
+        if len(series) == 0:
+            ranges.append(1.0)
             continue
-        lo, hi = np.percentile(s, [p_low, p_high])
-        rs.append(max(float(hi - lo), 1e-8))
-    return torch.tensor(rs, dtype=torch.float32, device=device)
+        lo, hi = np.percentile(series, [p_low, p_high])
+        ranges.append(max(float(hi - lo), 1e-8))
+    return torch.tensor(ranges, dtype=torch.float32, device=device)
 
 
-def attach_u(df):
-    df = df.copy()
-    # ensure RangeIndex so index labels match positions if you ever need them
-    df = df.reset_index(drop=True)
-    # make sure the 'graph' column is object dtype (no numpy array weirdness)
+def randomize_smiles(smiles: str) -> str:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return smiles
+    return Chem.MolToSmiles(mol, doRandom=True, canonical=False)
+
+
+def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFrame:
+    df = df.copy().reset_index(drop=True)
     df["graph"] = df["graph"].astype(object)
 
-    # 1) compute raw RDKit globals on TRAIN ONLY elsewhere, and fit scaler
-    # u_train = np.stack([rdkit_globals(s) for s in df_train["SMILES"]], axis=0)
-    # u_scaler = StandardScaler().fit(u_train)
+    u_vectors = []
+    for smiles in df["SMILES"]:
+        values = rdkit_globals(smiles)
+        values = u_scaler.transform(values.reshape(1, -1))[0]
+        u_vectors.append(torch.tensor(values, dtype=torch.float32))
+    df["u"] = u_vectors
 
-    # 2) transform for this split and stash as tensors
-    U_list = []
-    for s in df["SMILES"]:
-        v = rdkit_globals(s)                          # np.ndarray [U]
-        v = u_scaler.transform(v.reshape(1, -1))[0]   # z-score by TRAIN stats
-        U_list.append(torch.tensor(v, dtype=torch.float32))
-    df["u"] = U_list
-
-    # 3) mutate graphs in-place (no df.at reassign)
-    for idx, g in df["graph"].items():               # items() gives true index label
-        u_vec = df.at[idx, "u"].unsqueeze(0)         # [1, U]
-        g.u = u_vec                                   # attach to existing Data
+    for idx, graph in df["graph"].items():
+        graph.u = df.at[idx, "u"].unsqueeze(0)
 
     return df
 
-def make_loaders(df_train, df_val, df_test, batch_size=BATCH_SIZE):
-    train_loader = DataLoader(
-        df_train["graph"].tolist(), batch_size=batch_size, shuffle=True
-    )
-    val_loader = DataLoader(
-        df_val["graph"].tolist(), batch_size=batch_size, shuffle=False
-    )
-    test_loader = DataLoader(
-        df_test["graph"].tolist(), batch_size=batch_size, shuffle=False
-    )
+
+def make_loaders(
+    df_train: pd.DataFrame,
+    df_val: pd.DataFrame,
+    df_test: pd.DataFrame,
+    batch_size: int = BATCH_SIZE,
+):
+    train_loader = DataLoader(df_train["graph"].tolist(), batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(df_val["graph"].tolist(), batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(df_test["graph"].tolist(), batch_size=batch_size, shuffle=False)
     return train_loader, val_loader, test_loader
 
 
-# ---------------------------
-# Data
-# ---------------------------
-supp_frames = []
+def build_training_frame() -> pd.DataFrame:
+    official = load_official(TRAIN_CSV)
+    supplemental = [
+        load_tc_dataset("train_supplement/dataset1.csv"),
+        load_tg_dataset("train_supplement/dataset3.csv"),
+        load_ffv_dataset("train_supplement/dataset4.csv", header_has_names=False),
+    ]
 
-official = load_official(TRAIN_CSV)
+    combined = pd.concat([official] + supplemental, ignore_index=True, sort=False)
+    for col in NUMERIC_COLS:
+        combined[col] = pd.to_numeric(combined[col], errors="coerce")
 
-supp_frames.append(load_tc_dataset("train_supplement/dataset1.csv"))
-supp_frames.append(load_tg_dataset("train_supplement/dataset3.csv"))
-supp_frames.append(load_ffv_dataset("train_supplement/dataset4.csv", header_has_names=False))
+    combined["SMILES"] = combined["SMILES"].map(canon_polymer_smiles)
+    combined = combined[combined["SMILES"].notna()].copy()
 
-big = pd.concat([official] + supp_frames, ignore_index=True, sort=False)
-NUMERIC_COLS = ["Tg", "FFV", "Tc", "Density", "Rg"]  # adjust as needed
-for c in NUMERIC_COLS:
-    big[c] = pd.to_numeric(big[c], errors="coerce")
-
-big["SMILES"] = big["SMILES"].map(canon_polymer_smiles)
-big = big[big["SMILES"].notna()].copy()
-
-
-if "FFV" in big.columns:
-    big.loc[big["FFV"].notna(), "FFV"] = big["FFV"].clip(0.0, 1.0)
-if "Density" in big.columns:
-    big.loc[big["Density"].notna(), "Density"] = big["Density"].clip(lower=0.3, upper=3.0)
-
-# optional: run fix_tg_units once more on the combined table
-#merged = fix_tg_units(big, tg_col="Tg")
-# median across duplicates (or plug your resolve_conflicts if you prefer)
-agg = {c: "median" for c in NUMERIC_COLS}
-big = (big
-       .groupby("SMILES", as_index=False, sort=False)
-       .agg(agg))
-
-train_df = big  # now unique by SMILES
-
-_ = pd.read_csv(TEST_CSV)  # kept if you later want to predict on test.csv
-
-# Build PyG graphs for all rows
-
-def randomize_smiles(s):
-    m = Chem.MolFromSmiles(s)
-    return Chem.MolToSmiles(m, doRandom=True, canonical=False) if m else s
-
-train_df['SMILES'] = train_df['SMILES'].apply(randomize_smiles)
-train_df["graph"] = train_df["SMILES"].apply(mol_to_graph)
-
-u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0)
-u_scaler = StandardScaler().fit(u_train)
-
-
-# Split and scale (train-only stats)
-df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
-scalers = compute_scalers(df_train, PROPERTIES)
-
-# Attach multi-task targets + masks
-df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
-df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
-df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
-
-
-df_train = attach_u(df_train)
-df_val   = attach_u(df_val)
-df_test  = attach_u(df_test)
-
-# DataLoaders
-train_loader, val_loader, test_loader = make_loaders(
-    df_train, df_val, df_test, batch_size=BATCH_SIZE
-)
-# Define device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-ranges_trainval = ranges_from_minmax_dict(
-    MINMAX_DICT, PROPERTIES, device
-)  # r_i (original units)
-
-ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
-ranges_val   = ranges_from_frame(df_val,   PROPERTIES, device)
-ranges_test  = ranges_from_frame(df_test,  PROPERTIES, device)
-
-
-
-n_train = counts_from_loader(train_loader, NUM_TASKS, device)
-n_val = counts_from_loader(val_loader, NUM_TASKS, device)
-n_test = counts_from_loader(test_loader, NUM_TASKS, device)
-
-mu = torch.tensor(
-    [scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device
-)
-sd = torch.tensor(
-    [scalers[p][1] for p in PROPERTIES], dtype=torch.float32, device=device
-)
-
-
-def inv_std(z: torch.Tensor) -> torch.Tensor:
-    return z * sd.to(z.device) + mu.to(z.device)
-
-criterion_train = ContestWMAE(ranges_train, n_train, inverse_transform=inv_std).to(device)
-criterion_eval  = ContestWMAE(ranges_val,   n_train,   inverse_transform=inv_std).to(device)
-criterion_test  = ContestWMAE(ranges_test,  n_train,  inverse_transform=inv_std).to(device)
-
-#criterion_train = ContestWMAE(ranges_trainval, n_train, inverse_transform=inv_std).to(
-#    device
-#)
-#criterion_eval = ContestWMAE(ranges_trainval, n_val, inverse_transform=inv_std).to(
-#    device
-#)
-#criterion_test = ContestWMAE(ranges_trainval, n_test, inverse_transform=inv_std).to(
-#    device
-#)
-
-
-# Model
-# ---------------------------
-# Get feature sizes from one batch
-
-sample = next(iter(train_loader))
-in_channels = sample.num_node_features
-edge_attr = getattr(sample, "edge_attr", None)
-edge_dim    = sample.edge_attr.size(-1)
-U = sample.u.size(1) if hasattr(sample, "u") else 0
-
-if edge_attr is None:
-    raise RuntimeError(
-        "GINELayer expects edge features; got None. Supply edge_attr or switch to a non-edge GIN."
+    combined.loc[combined["FFV"].notna(), "FFV"] = combined["FFV"].clip(0.0, 1.0)
+    combined.loc[combined["Density"].notna(), "Density"] = combined["Density"].clip(
+        lower=0.3,
+        upper=3.0,
     )
 
-edge_dim = edge_attr.size(-1) if edge_attr.dim() >= 2 else 1
-#model = GINELayerUpgraded(
-#    in_channels=in_channels,
-#    edge_dim=edge_dim,
-#    hidden_channels=HIDDEN,
-#    out_channels=NUM_TASKS,  # multi-task
-#    num_layers=4,
-#    global_feat_dim=U,
-#)
+    agg = {col: "median" for col in NUMERIC_COLS}
+    combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
 
-model = GINELayerUpgraded(
-    in_channels=in_channels,
-    edge_dim=edge_dim,
-    out_channels=NUM_TASKS,
-    hidden_channels=384,   # try 384 (or 320 if VRAM tight)
-    num_layers=8,          # try 6–8
-    dropout=0.25,           # 0.2–0.3 works well
-    pooling="meanmax",     # <--- new
-    use_gru=False,         # start false; add later if you want
-    use_residual=True,
-    norm="batch",          # BatchNorm in blocks; we add LayerNorm before head
-    global_feat_dim=U,     # if you pass RDKit/global features
-)
-
-# ---------------------------
-# Train
-# ---------------------------
-
-optimizer = torch.optim.AdamW(add_weight_decay(model, WEIGHT_DECAY),
-                              lr=LR, betas=(0.9,0.999),
-                              eps= 1e-8)
+    combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
+    combined["graph"] = combined["SMILES"].apply(mol_to_graph)
+    return combined
 
 
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, mode='min', factor=0.5,
-    patience=3,                 # ≈10 epochs given eval_every=5
-    threshold_mode='abs', threshold=2e-4,
-    cooldown=1, min_lr=1e-6, verbose=True
-)
+def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> tuple[DataLoader, list[int]]:
+    test_graphs, test_ids = [], []
+    for _, row in test_df.iterrows():
+        smiles = str(row["SMILES"]).strip()
+        try:
+            graph = mol_to_graph(smiles)
+            values = rdkit_globals(smiles)
+            values = u_scaler.transform(values.reshape(1, -1))[0]
+            graph.u = torch.tensor(values, dtype=torch.float32).unsqueeze(0)
+            test_graphs.append(graph)
+            test_ids.append(int(row["id"]))
+        except Exception as exc:
+            print(f"[WARN] failed SMILES idx={row.name} :: {exc}")
 
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, mode='min', factor=0.5, patience=2, threshold=3e-4,
-    cooldown=3, min_lr=1e-6, verbose=True
-)
-
-
-task_weights = torch.tensor([3.0, 1.0, 1.0, 1.0, 1.0])  # [Tg, FFV, Tc, Density, Rg]
-# criterion = WeightedMaskedRMSE(task_weights=task_weights)
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# mins_d, maxs_d = mins.to(device), maxs.to(device)
-# criterion_train = MaskedWeightedScaledMAE(mins_d, maxs_d, train_w.to(device),
-#                                          inverse_transform=inv_std if TRAIN_IN_STD else None)
-
-# criterion_eval  = MaskedWeightedScaledMAE(mins_d, maxs_d, val_w.to(device),
-#                                          inverse_transform=inv_std if TRAIN_IN_STD else None)
-
-results = train_and_evaluate_edge(
-    model=model,
-    optimizer=optimizer,
-    criterion_train=criterion_train,
-    criterion_eval=criterion_eval,
-    criterion_test=criterion_test,
-    train_loader=train_loader,
-    val_loader=val_loader,
-    test_loader=test_loader,
-    epochs=EPOCHS,
-    early_stopping=True,
-    eval_every=5,
-    scheduler=scheduler,  # <--- pass it in
-)
-
-# save the model
-torch.save(model.state_dict(), "model_best.pt")
-
-print(
-    "Done. Test loss:",
-    results["test_losses"],
-    "MAE:",
-    results["test_mae"],
-    "R2:",
-    results["test_r2"],
-)
+    return DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False), test_ids
 
 
-# Recomputing the original predictions and targets, then getting the mask as well
+def predict(model, loader: DataLoader, device: torch.device, inv_std):
+    model.to(device)
+    model.eval()
+    chunks = []
 
-preds_z = results["test_preds"]  # [N, T] z-scores
-targets_z = results["test_targets"]  # [N, T] z-scores (zeros where unlabeled)
-mask = results["test_mask"].float()  # [N, T] 1 where labeled
-# your train-based scalers (built earlier)
-mu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32)
-sd = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32)
+    with torch.no_grad():
+        for data in loader:
+            data = data.to(device)
+            data.x = data.x.float()
+            if getattr(data, "edge_attr", None) is not None:
+                data.edge_attr = data.edge_attr.float()
+            out = model(
+                data.x,
+                data.edge_index,
+                data.edge_attr,
+                batch=data.batch,
+                u=getattr(data, "u", None),
+            )
+            chunks.append(inv_std(out).detach().cpu())
 
-# invert to original units
-preds_orig = preds_z * sd + mu  # broadcasting over T
-targets_orig = targets_z * sd + mu
+    return torch.cat(chunks, dim=0).numpy()
 
-# per-property MAE in original units (ignoring missing)
-per_prop_mae = ((preds_orig - targets_orig).abs() * mask).sum(0) / mask.sum(
-    0
-).clamp_min(1.0)
 
-# if you want to recompute the official contest wMAE on these tensors:
-contest_wmae = (
-    criterion_test(  # uses inverse_transform internally, but it's fine to pass z
+def main():
+    train_df = build_training_frame()
+    _ = pd.read_csv(TEST_CSV)
+
+    u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0)
+    u_scaler = StandardScaler().fit(u_train)
+
+    df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
+    scalers = compute_scalers(df_train, PROPERTIES)
+
+    df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
+    df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
+    df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
+
+    df_train = attach_u_features(df_train, u_scaler)
+    df_val = attach_u_features(df_val, u_scaler)
+    df_test = attach_u_features(df_test, u_scaler)
+
+    train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _ = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
+
+    ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
+    ranges_val = ranges_from_frame(df_val, PROPERTIES, device)
+    ranges_test = ranges_from_frame(df_test, PROPERTIES, device)
+
+    n_train = counts_from_loader(train_loader, NUM_TASKS, device)
+
+    mu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device)
+    sd = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32, device=device)
+
+    def inv_std(z: torch.Tensor) -> torch.Tensor:
+        return z * sd.to(z.device) + mu.to(z.device)
+
+    criterion_train = ContestWMAE(ranges_train, n_train, inverse_transform=inv_std).to(device)
+    criterion_eval = ContestWMAE(ranges_val, n_train, inverse_transform=inv_std).to(device)
+    criterion_test = ContestWMAE(ranges_test, n_train, inverse_transform=inv_std).to(device)
+
+    sample = next(iter(train_loader))
+    edge_attr = getattr(sample, "edge_attr", None)
+    if edge_attr is None:
+        raise RuntimeError(
+            "GINELayer expects edge features; got None. "
+            "Supply edge_attr or switch to a non-edge GIN."
+        )
+
+    model = GINELayerUpgraded(
+        in_channels=sample.num_node_features,
+        edge_dim=edge_attr.size(-1) if edge_attr.dim() >= 2 else 1,
+        out_channels=NUM_TASKS,
+        hidden_channels=HIDDEN,
+        num_layers=8,
+        dropout=0.25,
+        pooling="meanmax",
+        use_gru=False,
+        use_residual=True,
+        norm="batch",
+        global_feat_dim=sample.u.size(1) if hasattr(sample, "u") else 0,
+    )
+
+    optimizer = torch.optim.AdamW(
+        add_weight_decay(model, WEIGHT_DECAY),
+        lr=LR,
+        betas=(0.9, 0.999),
+        eps=1e-8,
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",
+        factor=0.5,
+        patience=2,
+        threshold=3e-4,
+        cooldown=3,
+        min_lr=1e-6,
+        verbose=True,
+    )
+
+    results = train_and_evaluate_edge(
+        model=model,
+        optimizer=optimizer,
+        criterion_train=criterion_train,
+        criterion_eval=criterion_eval,
+        criterion_test=criterion_test,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        epochs=EPOCHS,
+        early_stopping=True,
+        eval_every=5,
+        scheduler=scheduler,
+    )
+
+    torch.save(model.state_dict(), "model_best.pt")
+    print(
+        "Done. Test loss:",
+        results["test_losses"],
+        "MAE:",
+        results["test_mae"],
+        "R2:",
+        results["test_r2"],
+    )
+
+    preds_z = results["test_preds"]
+    targets_z = results["test_targets"]
+    mask = results["test_mask"].float()
+
+    mu_cpu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32)
+    sd_cpu = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32)
+
+    preds_orig = preds_z * sd_cpu + mu_cpu
+    targets_orig = targets_z * sd_cpu + mu_cpu
+    per_prop_mae = ((preds_orig - targets_orig).abs() * mask).sum(0) / mask.sum(0).clamp_min(1.0)
+
+    contest_wmae = criterion_test(
         preds_z.to(criterion_test.weights.device),
         targets_z.to(criterion_test.weights.device),
         mask.to(criterion_test.weights.device),
     ).item()
-)
+    print("Per-property MAE:", per_prop_mae.tolist())
+    print("Contest wMAE:", contest_wmae)
+
+    test_df = pd.read_csv(TEST_CSV)
+    test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)
+
+    pred_mat = predict(model, test_loader_only, device, inv_std)
+    submission = pd.DataFrame(pred_mat, columns=PROPERTIES)
+    submission.insert(0, "id", test_ids)
+    final_output = pd.merge(test_df, submission, on="id")
+    return final_output
 
 
-# Creating the properties for the test data
-test_df = pd.read_csv(TEST_CSV)
-test_graphs, test_ids = [], []
-
-# building test graphs
-for _, row in test_df.iterrows():
-    s = str(row["SMILES"]).strip()
-    try:
-        g = mol_to_graph(s)  # g.u currently raw (unscaled) from graph_descriptors
-        # Replace with TRAIN-scaled u:
-        v = rdkit_globals(s)                                   # np [U]
-        v = u_scaler.transform(v.reshape(1, -1))[0]            # z-score by TRAIN stats
-        g.u = torch.tensor(v, dtype=torch.float32).unsqueeze(0)  # [1, U]
-
-        test_graphs.append(g)
-        test_ids.append(int(row["id"]))
-    except Exception as e:
-        print(f"[WARN] failed SMILES idx={row.name} :: {e}")
-
-
-test_loader_only = DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False)
-
-# what is model eval doing here
-model.to(device); model.eval()
-pred_chunks = []
-
-with torch.no_grad():
-    for data in test_loader_only:
-        data = data.to(device)
-        data.x = data.x.float()
-        if getattr(data, "edge_attr", None) is not None:
-            data.edge_attr = data.edge_attr.float()
-        out = model(
-            data.x, data.edge_index, data.edge_attr, batch=data.batch,
-            u=getattr(data, "u", None),      # <<---- ADD THIS
-        )
-        out_orig = inv_std(out)
-        pred_chunks.append(out_orig.detach().cpu())
-
-pred_mat = torch.cat(pred_chunks, dim=0).numpy()
-subm = pd.DataFrame(pred_mat, columns=PROPERTIES)
-subm.insert(0, "id", test_ids)  # synthetic ids (0..N-1)
-final_output = pd.merge(test_df, subm, on = 'id')
+if __name__ == "__main__":
+    main()
