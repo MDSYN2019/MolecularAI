@@ -69,9 +69,9 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
     data_directory: str
 
     # default parameters that can be changed
-    training_data: Any = None # training data to be filled in
-    # the declartion that follows needs to be fixed..
-    _keras_model: Any = None # dummy variable to hold keras model for now
+    training_data: Any = None  # training data to be filled in
+    # Internal model lifecycle hooks/state.
+    _keras_model: Any = None
     _generate_model: Any = None
     _compile_model: Any = None
     _fit_model: Any = None
@@ -113,6 +113,7 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
         )
         print(self.training_data)
     def _generate_model(self) -> None:
+        """Create the base Keras model architecture."""
         self._keras_model = tf.keras.Sequential(
             [
                 tf.keras.layers.Dense(self.layer_points, activation="relu"),
@@ -122,8 +123,9 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
                 tf.keras.layers.Dense(self.n_outputs),
             ]
         )
+
     def _compile_model(self) -> None:
-        # how will we compile the model?
+        """Compile the generated model with default loss/optimizer."""
         self._keras_model.compile(
             loss="sparse_categorical_crossentropy",
             optimizer="sgd",
@@ -131,29 +133,17 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
         )
 
     def _fit_model(self) -> None:
-        assert self.training_data != None, "we need training data to be produced first!"
+        """Fit the compiled model on prepared training data."""
+        assert self.training_data is not None, "we need training data to be produced first!"
         self._keras_model.fit(self.training_data)
 
     def prepare_model(self) -> None:
         """
-        run the private functions for model training and model fitting
-        for the deepchem model
+        Build, compile, and train the model in one orchestrated flow.
         """
-        keras_model = tf.keras.Sequential(
-            [
-                tf.keras.layers.Dense(self.layer_points, activation="relu"),
-                tf.keras.layers.Dropout(
-                    rate=self.learning_rate
-                ),  # need to lookup how to apply dropout
-                tf.keras.layers.Dense(self.n_outputs),
-            ]
-        )
-        keras_model.compile(
-            loss="sparse_categorical_crossentropy",
-            optimizer="sgd",
-            metrics=["accuracy"],
-        )
-        keras_model.fit(self.training_data)
+        self._generate_model()
+        self._compile_model()
+        self._fit_model()
 
 def historical():
     # Set up parameters for the neural network

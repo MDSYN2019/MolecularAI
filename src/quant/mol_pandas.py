@@ -1,31 +1,24 @@
+"""Utilities for pulling molecule data from Postgres and featurizing with DeepChem."""
+
 from typing import Tuple
-import sys
-import os
 import random
-import logging
 
 import numpy as np
 import pandas as pd
 import deepchem as dc
 import pandera as pa
-from rdkit import RDConfig
-from rdkit.Chem import PandasTools
-
-# from deepchem.models.tensorgraph.models.graph_models import GraphConvModel
-# use pydantic to ensure that we have proper inputs
-from pydantic import BaseModel
-
-try:
-    import psycopg2
-    from psycopg2 import Error
-except:
-    print("Error: You need psycopg2 to run this code")
+import psycopg2
 
 
 class PostgresConnect:
     """
     interface for interacting with the postgres database
     """
+
+    DEFAULT_SMILES_QUERY = (
+        "SELECT id, structure FROM molecules "
+        "WHERE structure@>'c1cccnc1' LIMIT 100;"
+    )
 
     def __init__(
         self, database: str, user: str, host: str, password: str, port: str
@@ -42,6 +35,8 @@ class PostgresConnect:
             "port": self.port,
             "database": self.database,
         }
+        self.conn = None
+        self.cursor = None
 
     def make_connection(self) -> None:
         """
@@ -50,24 +45,13 @@ class PostgresConnect:
         """
         self.conn = psycopg2.connect(**self.input_vals)
         self.cursor = self.conn.cursor()
-        # except (Exception, Error) as error:
-        #    print("Error while connecting to PostgresSQL", error)
 
     def _return_query(self, query: str = None) -> list[Tuple[str, ...]]:
         """
-        setter function for _return
+        Run query and return raw rows from the RDKit cartridge.
         """
-        useful_queries = {
-            "c1cccnc1": "SELECT id, structure FROM molecules WHERE structure@>'c1cccnc1' LIMIT 100;",
-            "c1": "SELECT id, structure FROM molecules WHERE structure@>'c1cccnc1' LIMIT 100;",
-        }
-        if query:
-            self.cursor.execute(f"{query}")
-        # if default values for query, then query the following query
-        else:
-            self.cursor.execute(
-                "SELECT id, structure FROM molecules WHERE structure@>'c1cccnc1' LIMIT 100;"
-            )
+        sql_query = query or self.DEFAULT_SMILES_QUERY
+        self.cursor.execute(sql_query)
         # TODO - explore a number of queries for getting molecules
         record = self.cursor.fetchall()
         return record
@@ -114,22 +98,17 @@ class PostgresConnect:
         self, dataframe: pd.DataFrame, size: int = 1024
     ) -> None:
         """
-        prepare the deepchem dataset, but we need to ensure we have the
-        correct featurizer for the smiles molecules. At the moment we
-
-        https://deepchem.readthedocs.io/en/latest/get_started/tutorials.html#data-handling
+        Featurize smiles as ECFP and generate a small demo DeepChem dataset.
         """
-        # featurizer = dc.feat.ConvMolFeaturizer()
         featurizer = dc.feat.CircularFingerprint(size=size)
-        # convols = featurizer.featurize(dataframe['smiles'])
         ecfp = featurizer.featurize(dataframe["smiles"])
-        # generate random properties for now) - needs to be of the same length as
-        # the length of the smiles dataset
+        # Synthetic labels are placeholders until a real target column is wired in.
         properties = [random.random() for _ in dataframe["smiles"]]
         self.engineered_features = dc.data.NumpyDataset(X=ecfp, y=np.array(properties))
         training_data = self._split(self.engineered_features)
         print(training_data)
         return training_data
+
     def close_connection(self) -> None:
         """
         option to close the connection to postgres
