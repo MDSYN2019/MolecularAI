@@ -42,8 +42,8 @@ def set_seed(seed=SEED):
 
 # ---------- DATA (built once) ----------
 set_seed()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_df = pd.read_csv(TRAIN_CSV)
 train_df = fix_tg_units(train_df)
 train_df["graph"] = train_df["SMILES"].apply(mol_to_graph)
@@ -57,6 +57,7 @@ df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
 
 mu_t = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device)
 sd_t = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32, device=device)
+
 def inv_std(z, mu=mu_t, sd=sd_t):
     return z * sd.to(z.device) + mu.to(z.device)
 
