@@ -2,137 +2,136 @@
 \label{namespacechemistry2quant_1_1chem2quant__NN}\index{chemistry2quant.\+chem2quant\+\_\+\+NN@{chemistry2quant.\+chem2quant\+\_\+\+NN}}
 \subsection*{Functions}
 \begin{DoxyCompactItemize}
-\item 
+\item
 def \hyperlink{namespacechemistry2quant_1_1chem2quant__NN_afb055d34a228ae670b94588087aa897e}{next\+\_\+batch} (num, data, labels)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a2c65dfd32b269c8366de91ed1f094dda}\label{namespacechemistry2quant_1_1chem2quant__NN_a2c65dfd32b269c8366de91ed1f094dda}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a2c65dfd32b269c8366de91ed1f094dda}\label{namespacechemistry2quant_1_1chem2quant__NN_a2c65dfd32b269c8366de91ed1f094dda}}
 def {\bfseries mol2arr} (mol)
 \end{DoxyCompactItemize}
 \subsection*{Variables}
 \begin{DoxyCompactItemize}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ad12d111be251ed83af451082bd45a2dc}\label{namespacechemistry2quant_1_1chem2quant__NN_ad12d111be251ed83af451082bd45a2dc}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ad12d111be251ed83af451082bd45a2dc}\label{namespacechemistry2quant_1_1chem2quant__NN_ad12d111be251ed83af451082bd45a2dc}}
 int {\bfseries n\+\_\+hidden1} = 300
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa40ec150e2ce46aff8986fd5e4124ae8}\label{namespacechemistry2quant_1_1chem2quant__NN_aa40ec150e2ce46aff8986fd5e4124ae8}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa40ec150e2ce46aff8986fd5e4124ae8}\label{namespacechemistry2quant_1_1chem2quant__NN_aa40ec150e2ce46aff8986fd5e4124ae8}}
 int {\bfseries n\+\_\+hidden2} = 300
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a2b7163491dd3dbe22fa62ac0b86a466e}\label{namespacechemistry2quant_1_1chem2quant__NN_a2b7163491dd3dbe22fa62ac0b86a466e}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a2b7163491dd3dbe22fa62ac0b86a466e}\label{namespacechemistry2quant_1_1chem2quant__NN_a2b7163491dd3dbe22fa62ac0b86a466e}}
 int {\bfseries n\+\_\+hidden3} = 300
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a018c556b422445320a2240a054ba7dc7}\label{namespacechemistry2quant_1_1chem2quant__NN_a018c556b422445320a2240a054ba7dc7}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a018c556b422445320a2240a054ba7dc7}\label{namespacechemistry2quant_1_1chem2quant__NN_a018c556b422445320a2240a054ba7dc7}}
 float {\bfseries learning\+\_\+rate} = 0.\+01
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ab66d41ca20104dd9e8662d8cfa52bf1f}\label{namespacechemistry2quant_1_1chem2quant__NN_ab66d41ca20104dd9e8662d8cfa52bf1f}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ab66d41ca20104dd9e8662d8cfa52bf1f}\label{namespacechemistry2quant_1_1chem2quant__NN_ab66d41ca20104dd9e8662d8cfa52bf1f}}
 int {\bfseries n\+\_\+outputs} = 3
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afe2d119cffc5840ca31b1df221352f44}\label{namespacechemistry2quant_1_1chem2quant__NN_afe2d119cffc5840ca31b1df221352f44}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afe2d119cffc5840ca31b1df221352f44}\label{namespacechemistry2quant_1_1chem2quant__NN_afe2d119cffc5840ca31b1df221352f44}}
 string {\bfseries datadir} = \textquotesingle{}data\textquotesingle{}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aaab99f2dc8ab9cd9758c58dcf76974e5}\label{namespacechemistry2quant_1_1chem2quant__NN_aaab99f2dc8ab9cd9758c58dcf76974e5}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aaab99f2dc8ab9cd9758c58dcf76974e5}\label{namespacechemistry2quant_1_1chem2quant__NN_aaab99f2dc8ab9cd9758c58dcf76974e5}}
 list {\bfseries train\+\_\+mol} = \mbox{[}mol for mol in Chem.\+S\+D\+Mol\+Supplier(os.\+path.\+join(datadir,\textquotesingle{}solubility.\+train.\+sdf\textquotesingle{})) if mol != None\mbox{]}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa676e75d1cc9fd816d42a6e109716171}\label{namespacechemistry2quant_1_1chem2quant__NN_aa676e75d1cc9fd816d42a6e109716171}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa676e75d1cc9fd816d42a6e109716171}\label{namespacechemistry2quant_1_1chem2quant__NN_aa676e75d1cc9fd816d42a6e109716171}}
 list {\bfseries test\+\_\+mol} = \mbox{[}mol for mol in Chem.\+S\+D\+Mol\+Supplier(os.\+path.\+join(datadir,\textquotesingle{}solubility.\+test.\+sdf\textquotesingle{})) if mol != None\mbox{]}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a96885acb316afc3fb8721ee0b7a76c3d}\label{namespacechemistry2quant_1_1chem2quant__NN_a96885acb316afc3fb8721ee0b7a76c3d}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a96885acb316afc3fb8721ee0b7a76c3d}\label{namespacechemistry2quant_1_1chem2quant__NN_a96885acb316afc3fb8721ee0b7a76c3d}}
 {\bfseries cls\+\_\+mol} = list(set(\mbox{[}mol.\+Get\+Prop(\textquotesingle{}S\+O\+L\+\_\+classification\textquotesingle{}) for mol in train\+\_\+mol\mbox{]}))
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a359d880d0923047ca854cb9050359b32}\label{namespacechemistry2quant_1_1chem2quant__NN_a359d880d0923047ca854cb9050359b32}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a359d880d0923047ca854cb9050359b32}\label{namespacechemistry2quant_1_1chem2quant__NN_a359d880d0923047ca854cb9050359b32}}
 dictionary {\bfseries cls\+\_\+dic} = \{\}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a06329b74e3f211dff365a79893b6cd4f}\label{namespacechemistry2quant_1_1chem2quant__NN_a06329b74e3f211dff365a79893b6cd4f}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a06329b74e3f211dff365a79893b6cd4f}\label{namespacechemistry2quant_1_1chem2quant__NN_a06329b74e3f211dff365a79893b6cd4f}}
 {\bfseries train\+\_\+X} = np.\+array(\mbox{[}mol2arr(mol) for mol in train\+\_\+mol\mbox{]})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a7da1862279e9df8e0305363c85e02bf8}\label{namespacechemistry2quant_1_1chem2quant__NN_a7da1862279e9df8e0305363c85e02bf8}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a7da1862279e9df8e0305363c85e02bf8}\label{namespacechemistry2quant_1_1chem2quant__NN_a7da1862279e9df8e0305363c85e02bf8}}
 {\bfseries train\+\_\+y} = np.\+array(\mbox{[}cls\+\_\+dic\mbox{[}mol.\+Get\+Prop(\textquotesingle{}S\+O\+L\+\_\+classification\textquotesingle{})\mbox{]} for mol in train\+\_\+mol\mbox{]})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa5df3088953e1165b7b409826f8ff8f2}\label{namespacechemistry2quant_1_1chem2quant__NN_aa5df3088953e1165b7b409826f8ff8f2}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_aa5df3088953e1165b7b409826f8ff8f2}\label{namespacechemistry2quant_1_1chem2quant__NN_aa5df3088953e1165b7b409826f8ff8f2}}
 {\bfseries test\+\_\+X} = np.\+array(\mbox{[}mol2arr(mol) for mol in test\+\_\+mol\mbox{]})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a0e602d2f7f57448626ab0030b1095fa7}\label{namespacechemistry2quant_1_1chem2quant__NN_a0e602d2f7f57448626ab0030b1095fa7}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a0e602d2f7f57448626ab0030b1095fa7}\label{namespacechemistry2quant_1_1chem2quant__NN_a0e602d2f7f57448626ab0030b1095fa7}}
 {\bfseries test\+\_\+y} = np.\+array(\mbox{[}cls\+\_\+dic\mbox{[}mol.\+Get\+Prop(\textquotesingle{}S\+O\+L\+\_\+classification\textquotesingle{})\mbox{]} for mol in test\+\_\+mol\mbox{]})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a058e0566d51ad7901338a7446d4f687e}\label{namespacechemistry2quant_1_1chem2quant__NN_a058e0566d51ad7901338a7446d4f687e}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a058e0566d51ad7901338a7446d4f687e}\label{namespacechemistry2quant_1_1chem2quant__NN_a058e0566d51ad7901338a7446d4f687e}}
 {\bfseries X} = tf.\+placeholder(tf.\+float32, shape = (None, np.\+shape(train\+\_\+X\mbox{[}0\mbox{]})\mbox{[}0\mbox{]}), name = \char`\"{}X\char`\"{})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ad06d919809e5ad7f397a7106cdf2cd9d}\label{namespacechemistry2quant_1_1chem2quant__NN_ad06d919809e5ad7f397a7106cdf2cd9d}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ad06d919809e5ad7f397a7106cdf2cd9d}\label{namespacechemistry2quant_1_1chem2quant__NN_ad06d919809e5ad7f397a7106cdf2cd9d}}
 {\bfseries y} = tf.\+placeholder(tf.\+int64, shape=(None), name=\char`\"{}y\char`\"{})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_adaa42d9bfda5556d84893d20564a0587}\label{namespacechemistry2quant_1_1chem2quant__NN_adaa42d9bfda5556d84893d20564a0587}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_adaa42d9bfda5556d84893d20564a0587}\label{namespacechemistry2quant_1_1chem2quant__NN_adaa42d9bfda5556d84893d20564a0587}}
 {\bfseries he\+\_\+init} = tf.\+contrib.\+layers.\+variance\+\_\+scaling\+\_\+initializer()
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a7c508a92b10b49d319dbaa4bf32f4603}\label{namespacechemistry2quant_1_1chem2quant__NN_a7c508a92b10b49d319dbaa4bf32f4603}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a7c508a92b10b49d319dbaa4bf32f4603}\label{namespacechemistry2quant_1_1chem2quant__NN_a7c508a92b10b49d319dbaa4bf32f4603}}
 {\bfseries hidden1} = fully\+\_\+connected(X, n\+\_\+hidden1, weights\+\_\+initializer = he\+\_\+init, scope = \char`\"{}hidden1\char`\"{})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae5e03ae2343b49f236c2a942a5c8047c}\label{namespacechemistry2quant_1_1chem2quant__NN_ae5e03ae2343b49f236c2a942a5c8047c}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae5e03ae2343b49f236c2a942a5c8047c}\label{namespacechemistry2quant_1_1chem2quant__NN_ae5e03ae2343b49f236c2a942a5c8047c}}
 {\bfseries hidden2} = fully\+\_\+connected(hidden1, n\+\_\+hidden2, weights\+\_\+initializer = he\+\_\+init, scope = \char`\"{}hidden2\char`\"{})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ab842ef6d43c1173baa2e074770117b1e}\label{namespacechemistry2quant_1_1chem2quant__NN_ab842ef6d43c1173baa2e074770117b1e}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ab842ef6d43c1173baa2e074770117b1e}\label{namespacechemistry2quant_1_1chem2quant__NN_ab842ef6d43c1173baa2e074770117b1e}}
 {\bfseries logits} = fully\+\_\+connected(hidden2, n\+\_\+outputs, weights\+\_\+initializer = he\+\_\+init, scope = \char`\"{}outputs\char`\"{}, activation\+\_\+fn = None)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a94a9ca4e3fb39656deba2044a94e5fd9}\label{namespacechemistry2quant_1_1chem2quant__NN_a94a9ca4e3fb39656deba2044a94e5fd9}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a94a9ca4e3fb39656deba2044a94e5fd9}\label{namespacechemistry2quant_1_1chem2quant__NN_a94a9ca4e3fb39656deba2044a94e5fd9}}
 {\bfseries xentropy} = tf.\+nn.\+sparse\+\_\+softmax\+\_\+cross\+\_\+entropy\+\_\+with\+\_\+logits(labels = y, logits = logits)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a9a23dd52024165692c49df6102c996ce}\label{namespacechemistry2quant_1_1chem2quant__NN_a9a23dd52024165692c49df6102c996ce}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a9a23dd52024165692c49df6102c996ce}\label{namespacechemistry2quant_1_1chem2quant__NN_a9a23dd52024165692c49df6102c996ce}}
 {\bfseries loss} = tf.\+reduce\+\_\+mean(xentropy, name = \char`\"{}loss\char`\"{})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a4b3725ddf027f81477052fd33ce8e9a1}\label{namespacechemistry2quant_1_1chem2quant__NN_a4b3725ddf027f81477052fd33ce8e9a1}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a4b3725ddf027f81477052fd33ce8e9a1}\label{namespacechemistry2quant_1_1chem2quant__NN_a4b3725ddf027f81477052fd33ce8e9a1}}
 {\bfseries correct} = tf.\+nn.\+in\+\_\+top\+\_\+k(logits, y ,1)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae9f1b8df536db132771bb8bc3c7430d3}\label{namespacechemistry2quant_1_1chem2quant__NN_ae9f1b8df536db132771bb8bc3c7430d3}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae9f1b8df536db132771bb8bc3c7430d3}\label{namespacechemistry2quant_1_1chem2quant__NN_ae9f1b8df536db132771bb8bc3c7430d3}}
 {\bfseries accuracy} = tf.\+reduce\+\_\+mean(tf.\+cast(correct, tf.\+float32))
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_af457ddc7b0e03be335894a03077fd8b7}\label{namespacechemistry2quant_1_1chem2quant__NN_af457ddc7b0e03be335894a03077fd8b7}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_af457ddc7b0e03be335894a03077fd8b7}\label{namespacechemistry2quant_1_1chem2quant__NN_af457ddc7b0e03be335894a03077fd8b7}}
 {\bfseries optimizer} = tf.\+train.\+Gradient\+Descent\+Optimizer(learning\+\_\+rate)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_acba1c26abce105144e8f0d60a1068c79}\label{namespacechemistry2quant_1_1chem2quant__NN_acba1c26abce105144e8f0d60a1068c79}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_acba1c26abce105144e8f0d60a1068c79}\label{namespacechemistry2quant_1_1chem2quant__NN_acba1c26abce105144e8f0d60a1068c79}}
 {\bfseries training\+\_\+op} = optimizer.\+minimize(loss)
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae4aff91e0d7af103eaaef10b18075253}\label{namespacechemistry2quant_1_1chem2quant__NN_ae4aff91e0d7af103eaaef10b18075253}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ae4aff91e0d7af103eaaef10b18075253}\label{namespacechemistry2quant_1_1chem2quant__NN_ae4aff91e0d7af103eaaef10b18075253}}
 {\bfseries init} = tf.\+global\+\_\+variables\+\_\+initializer()
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a70d2c6378062ed0ad4bde95cebafd57d}\label{namespacechemistry2quant_1_1chem2quant__NN_a70d2c6378062ed0ad4bde95cebafd57d}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a70d2c6378062ed0ad4bde95cebafd57d}\label{namespacechemistry2quant_1_1chem2quant__NN_a70d2c6378062ed0ad4bde95cebafd57d}}
 {\bfseries saver} = tf.\+train.\+Saver()
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a83b2d2aff8b2b1a37c2d97ae7aa35ba1}\label{namespacechemistry2quant_1_1chem2quant__NN_a83b2d2aff8b2b1a37c2d97ae7aa35ba1}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a83b2d2aff8b2b1a37c2d97ae7aa35ba1}\label{namespacechemistry2quant_1_1chem2quant__NN_a83b2d2aff8b2b1a37c2d97ae7aa35ba1}}
 int {\bfseries n\+\_\+epochs} = 20
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afcd6b36a19d229a0b649ea567b898156}\label{namespacechemistry2quant_1_1chem2quant__NN_afcd6b36a19d229a0b649ea567b898156}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afcd6b36a19d229a0b649ea567b898156}\label{namespacechemistry2quant_1_1chem2quant__NN_afcd6b36a19d229a0b649ea567b898156}}
 int {\bfseries batch\+\_\+size} = 100
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ade7be0b947adc0fefec69bbd6075f27f}\label{namespacechemistry2quant_1_1chem2quant__NN_ade7be0b947adc0fefec69bbd6075f27f}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_ade7be0b947adc0fefec69bbd6075f27f}\label{namespacechemistry2quant_1_1chem2quant__NN_ade7be0b947adc0fefec69bbd6075f27f}}
 {\bfseries X\+\_\+batch}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a43d2f31fbb7c1ebc130e3e600484529d}\label{namespacechemistry2quant_1_1chem2quant__NN_a43d2f31fbb7c1ebc130e3e600484529d}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a43d2f31fbb7c1ebc130e3e600484529d}\label{namespacechemistry2quant_1_1chem2quant__NN_a43d2f31fbb7c1ebc130e3e600484529d}}
 {\bfseries y\+\_\+batch}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a63bedc3cdcc2284801b22869eee073de}\label{namespacechemistry2quant_1_1chem2quant__NN_a63bedc3cdcc2284801b22869eee073de}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a63bedc3cdcc2284801b22869eee073de}\label{namespacechemistry2quant_1_1chem2quant__NN_a63bedc3cdcc2284801b22869eee073de}}
 {\bfseries feed\+\_\+dict}
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a4a3a2f40fbba7b1aa0688e669b322f6f}\label{namespacechemistry2quant_1_1chem2quant__NN_a4a3a2f40fbba7b1aa0688e669b322f6f}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a4a3a2f40fbba7b1aa0688e669b322f6f}\label{namespacechemistry2quant_1_1chem2quant__NN_a4a3a2f40fbba7b1aa0688e669b322f6f}}
 {\bfseries acc\+\_\+train} = accuracy.\+eval(feed\+\_\+dict=\{X\+: X\+\_\+batch, y\+: y\+\_\+batch\})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a67145a74ce2fac9a16f2dc7efe4587ca}\label{namespacechemistry2quant_1_1chem2quant__NN_a67145a74ce2fac9a16f2dc7efe4587ca}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a67145a74ce2fac9a16f2dc7efe4587ca}\label{namespacechemistry2quant_1_1chem2quant__NN_a67145a74ce2fac9a16f2dc7efe4587ca}}
 {\bfseries acc\+\_\+test} = accuracy.\+eval(feed\+\_\+dict=\{X\+: test\+\_\+X, y\+: test\+\_\+y\})
-\item 
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a376410e5c5692144e1a528a4f8b9d85a}\label{namespacechemistry2quant_1_1chem2quant__NN_a376410e5c5692144e1a528a4f8b9d85a}} 
+\item
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_a376410e5c5692144e1a528a4f8b9d85a}\label{namespacechemistry2quant_1_1chem2quant__NN_a376410e5c5692144e1a528a4f8b9d85a}}
 {\bfseries save\+\_\+path} = saver.\+save(sess, \char`\"{}./my\+\_\+model\+\_\+final.\+ckpt\char`\"{})
 \end{DoxyCompactItemize}
 
 
 \subsection{Detailed Description}
-\begin{DoxyVerb}Tensorflow implementation of 
+\begin{DoxyVerb}Tensorflow implementation of
 \end{DoxyVerb}
- 
+
 
 \subsection{Function Documentation}
-\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afb055d34a228ae670b94588087aa897e}\label{namespacechemistry2quant_1_1chem2quant__NN_afb055d34a228ae670b94588087aa897e}} 
+\mbox{\Hypertarget{namespacechemistry2quant_1_1chem2quant__NN_afb055d34a228ae670b94588087aa897e}\label{namespacechemistry2quant_1_1chem2quant__NN_afb055d34a228ae670b94588087aa897e}}
 \index{chemistry2quant\+::chem2quant\+\_\+\+NN@{chemistry2quant\+::chem2quant\+\_\+\+NN}!next\+\_\+batch@{next\+\_\+batch}}
 \index{next\+\_\+batch@{next\+\_\+batch}!chemistry2quant\+::chem2quant\+\_\+\+NN@{chemistry2quant\+::chem2quant\+\_\+\+NN}}
 \subsubsection{\texorpdfstring{next\+\_\+batch()}{next\_batch()}}
 {\footnotesize\ttfamily def chemistry2quant.\+chem2quant\+\_\+\+N\+N.\+next\+\_\+batch (\begin{DoxyParamCaption}\item[{}]{num,  }\item[{}]{data,  }\item[{}]{labels }\end{DoxyParamCaption})}
 
-\begin{DoxyVerb}Return a total of `num` random samples and labels. 
+\begin{DoxyVerb}Return a total of `num` random samples and labels.
 \end{DoxyVerb}
- 

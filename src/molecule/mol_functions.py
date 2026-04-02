@@ -275,10 +275,10 @@ def get_molecular_properties(mol):
     return property_dictionary
 
 
-def advanced_smiles_to_graph(smiles, bond_type_to_idx=bond_type_to_idx):
+def advanced_smiles_to_graph(smiles : str, bond_type_to_idx=bond_type_to_idx):
     """
     We have defined the bond_type_to_idx above as a general definition
-    
+
     The simple representation above use only atom type and bond types, but real-world applications often need
     more sophisticated features.
 
@@ -287,7 +287,7 @@ def advanced_smiles_to_graph(smiles, bond_type_to_idx=bond_type_to_idx):
     if smiles is None:
         raise ValueError("Invalid SMILES string")
 
-    
+
     mol = Chem.MolFromSmiles(smiles)
     mol = Chem.AddHs(mol)
     n_atoms = mol.GetNumAtoms()
@@ -295,8 +295,8 @@ def advanced_smiles_to_graph(smiles, bond_type_to_idx=bond_type_to_idx):
     node_features = []
     # molecular_properties = get_molecular_properties(mol)
     for atom in mol.GetAtoms():
-        atom_type = atom.GetSymbol()
-        atomic_num = atom.GetAtomicNum()
+        atom_type = atom.GetSymbol() # get the atom type
+        atomic_num = atom.GetAtomicNum() # get the atomic number
         formal_charge = atom.GetFormalCharge()
         hybridization = atom.GetHybridization()
         is_aromatic = int(atom.GetIsAromatic())
@@ -401,6 +401,20 @@ def advanced_smiles_to_graph(smiles, bond_type_to_idx=bond_type_to_idx):
         )  # +2 for conjugation and ring
 
     return node_features, adjacency, edge_features, edge_indices
+
+
+
+def smiles_to_pytorch_graph(smiles):
+    """
+    Pytorch geometric for molecular graphs
+
+    Now that we understand the fundamentals of graph representation for molecules, let's implement this using Pytorch Geometric (PyG),
+    a library specifically designed for graph neural networks
+    """
+    # Get the graph representation
+    node_features, adjacency, edge_features, edge_indices = advanced_smiles_to_graph(
+        smiles
+    )
 
 
 def mol_to_graph(smiles: str) -> Data:

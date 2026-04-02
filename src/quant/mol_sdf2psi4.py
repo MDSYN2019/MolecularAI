@@ -16,7 +16,7 @@ from rdkit import Chem
 # add feature to process mult record sd files
 # sd file should have a tag that contains unique molecule names and those names will be used
 # as prefix for psi4 filenames
-  
+
 # return atom elements and XYZ coordinates for a given SD file
 # return only values for first molecule if there are multiple molecules
 def get_xyz(infile):
@@ -40,7 +40,7 @@ def replace_coords_in_psi4_template(template_file, xyz_string, file_to_save, ema
     new_data = template.substitute(COORDINATES=xyz_string, XYZ_FILE_TO_SAVE=file_to_save+".xyz", SD_FILE_TO_SAVE=file_to_save+".sdf", EMAIL=email)
     #print (new_data)
     return new_data
-        
+
 #check to see if there are invalid properties
 def main(argv=None):
     # usage statement
@@ -74,9 +74,9 @@ def main(argv=None):
 
     # create result file name for storing psi4 output using basename of inputfile
     file_base = os.path.splitext(os.path.basename(args.infile))[0]
-    result_file = args.prefix + file_base 
+    result_file = args.prefix + file_base
     psi4_file = args.prefix + file_base + ".opt"
-    if args.outfile is not None: 
+    if args.outfile is not None:
         psi4_file = args.outfile
 
     # insert XYZ and prefix into Psi4 template
@@ -84,11 +84,10 @@ def main(argv=None):
     fh = open (psi4_file, 'w')
     fh.write(psi4_string)
     fh.close()
-    
+
     sys.stderr.write("To start psi4 job, run: psi4 " +  psi4_file + " -n nCPUs\n")
     #print (psi4_string)
 
 if __name__ == "__main__":
     # Let main()'s return value specify the exit status.
     sys.exit(main())
-

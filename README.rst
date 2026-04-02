@@ -44,5 +44,3 @@ A list of great websites I've taken inspiration from.
 - https://iwatobipen.wordpress.com/
 
 - http://rdkit.blogspot.com/
-
- 

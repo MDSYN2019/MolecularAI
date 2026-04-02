@@ -130,7 +130,7 @@ big = pd.concat([official] + supp_frames, ignore_index=True, sort=False)
 NUMERIC_COLS = ["Tg", "FFV", "Tc", "Density", "Rg"]  # adjust as needed
 for c in NUMERIC_COLS:
     big[c] = pd.to_numeric(big[c], errors="coerce")
-    
+
 big["SMILES"] = big["SMILES"].map(canon_polymer_smiles)
 big = big[big["SMILES"].notna()].copy()
 
@@ -387,10 +387,10 @@ for _, row in test_df.iterrows():
     except Exception as e:
         print(f"[WARN] failed SMILES idx={row.name} :: {e}")
 
-        
+
 test_loader_only = DataLoader(test_graphs, batch_size=BATCH_SIZE, shuffle=False)
 
-# what is model eval doing here 
+# what is model eval doing here
 model.to(device); model.eval()
 pred_chunks = []
 

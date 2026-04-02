@@ -33,25 +33,25 @@ class GCNLayer(nn.Module):
     - Input GCN Layer
     - Optional hidden GCN layers
     - Global pooling -> graph embedding
-    - MLP for final prediction 
+    - MLP for final prediction
     """
 
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2):
         super().__init__()
 
-        # The first GCN layer 
+        # The first GCN layer
         self.conv1 = GCNConv(in_channels, hidden_channels)
 
         # Additional GCN Layers
         self.convs = nn.ModuleList()
-        for _ in range(num_layers - 1): # add num_layers - 1 hidden layers 
+        for _ in range(num_layers - 1): # add num_layers - 1 hidden layers
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
-            
-        # MLP head 
+
+        # MLP head
         self.lin1 = nn.Linear(hidden_channels, hidden_channels)
         self.lin2 = nn.Linear(hidden_channels, out_channels)
 
-    def forward(self, x, edge_index, batch) -> None:  
+    def forward(self, x, edge_index, batch) -> None:
         x = self.conv1(x, edge_index)
         x = F.leaky_relu(x)
         # additional gcn layers

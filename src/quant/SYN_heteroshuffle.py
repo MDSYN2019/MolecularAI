@@ -7,11 +7,11 @@ from rdkit.Chem import rdFMCS
 from rdkit.Chem import TemplateAlign
 
 """
-Heteroshuffle class is defined to generate hetero shuffled molecules 
+Heteroshuffle class is defined to generate hetero shuffled molecules
 
-To generate possible combinations of atoms, the code passes candaidates of aomtic numbers (C, S, N, O) 
-and number of atoms hwich construct target rings. Invalid moleucles will be removed after possible 
-combinations are generated 
+To generate possible combinations of atoms, the code passes candaidates of aomtic numbers (C, S, N, O)
+and number of atoms hwich construct target rings. Invalid moleucles will be removed after possible
+combinations are generated
 """
 
 class HeteroShuffle():
@@ -53,7 +53,7 @@ class HeteroShuffle():
 		"""
 		atoms = []
 		for atom in self.core.GetAromaticAtoms():
-			neighbors = [a.GetSymbol() for a in atom.GetNeighbors()}
+			neighbors = [a.GetSymbol() for a in atom.GetNeighbors()]
 			if '*' not in neighbors and atom.GetSymbol() != '*':
 				atoms.append(atom)
 		print(len(atoms))
@@ -71,5 +71,4 @@ class HeteroShuffle():
 				target.GetAtomWithIdx(idx).SetAtomicNum(combination[i])
 			smi = Chem.MolToSmiles(target)
 			target = Chem.MolFromSmiles(smi)
-			if target != None:
-				
+			#if target != None:

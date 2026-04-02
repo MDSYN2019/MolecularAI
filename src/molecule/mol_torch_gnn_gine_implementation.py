@@ -76,7 +76,7 @@ def objective(trial: optuna.Trial) -> float:
     patience = trial.suggest_int("patience", 20, 40)
 
     # DataLoaders (batch-size dependent)
-    
+
     train_loader = DataLoader(
         df_train["graph"].tolist(),
         batch_size=batch_size, shuffle=True,

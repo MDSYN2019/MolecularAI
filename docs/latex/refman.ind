@@ -2,23 +2,23 @@
 
   \item {chemistry2quant.\+chem2quant\+\_\+\+NN}, \hyperpage{7}
   \item {chemistry2quant.\+chem2quant\+\_\+analysis}, \hyperpage{5}
-  \item {chemistry2quant.\+chem2quant\+\_\+analysis.\+rdkit\+Process\+Df}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+analysis.\+rdkit\+Process\+Df},
 		\hyperpage{11}
-  \item {chemistry2quant.\+chem2quant\+\_\+analysis.\+rdkit\+Psi4\+Data\+Generator}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+analysis.\+rdkit\+Psi4\+Data\+Generator},
 		\hyperpage{12}
-  \item {chemistry2quant.\+chem2quant\+\_\+chembl2pandas}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+chembl2pandas},
 		\hyperpage{6}
-  \item {chemistry2quant.\+chem2quant\+\_\+chembl2pandas.\+chembl\+Connect}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+chembl2pandas.\+chembl\+Connect},
 		\hyperpage{9}
-  \item {chemistry2quant.\+chem2quant\+\_\+gen\+\_\+psi4\+\_\+input.\+chem2quant\+\_\+psi4}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+gen\+\_\+psi4\+\_\+input.\+chem2quant\+\_\+psi4},
 		\hyperpage{9}
-  \item {chemistry2quant.\+chem2quant\+\_\+lipophilicity}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+lipophilicity},
 		\hyperpage{6}
-  \item {chemistry2quant.\+chem2quant\+\_\+lipophilicity.\+rdkit\+\_\+lipophilicity}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+lipophilicity.\+rdkit\+\_\+lipophilicity},
 		\hyperpage{10}
-  \item {chemistry2quant.\+chem2quant\+\_\+mol2vec\+\_\+\+Ch\+E\+M\+BL}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+mol2vec\+\_\+\+Ch\+E\+M\+BL},
 		\hyperpage{7}
-  \item {chemistry2quant.\+chem2quant\+\_\+screening.\+two\+\_\+step\+\_\+screen}, 
+  \item {chemistry2quant.\+chem2quant\+\_\+screening.\+two\+\_\+step\+\_\+screen},
 		\hyperpage{12}
   \item {chemistry2quant\+::chem2quant\+\_\+\+NN}
     \subitem {next\+\_\+batch}, \hyperpage{8}
@@ -35,13 +35,13 @@
   \indexspace
 
   \item {first\+\_\+screen}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen},
 		\hyperpage{13}
 
   \indexspace
 
   \item {mols2feat}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+lipophilicity\+::rdkit\+\_\+lipophilicity}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+lipophilicity\+::rdkit\+\_\+lipophilicity},
 		\hyperpage{10}
 
   \indexspace
@@ -52,19 +52,19 @@
   \indexspace
 
   \item {process\+\_\+data\+\_\+column}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+lipophilicity\+::rdkit\+\_\+lipophilicity}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+lipophilicity\+::rdkit\+\_\+lipophilicity},
 		\hyperpage{11}
 
   \indexspace
 
   \item {sdf\+To\+Mol}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+analysis}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+analysis},
 		\hyperpage{6}
   \item {second\+\_\+screen}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen},
 		\hyperpage{13}
   \item {smile\+Mol}
-    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen}, 
+    \subitem {chemistry2quant\+::chem2quant\+\_\+screening\+::two\+\_\+step\+\_\+screen},
 		\hyperpage{13}
 
 \end{theindex}

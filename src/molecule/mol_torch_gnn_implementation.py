@@ -1,6 +1,6 @@
 
 """
-GNNs are specific layers that input a graph and output a graph. 
+GNNs are specific layers that input a graph and output a graph.
 For each atom(node), we need to define a feature vector.
 For example:
 
@@ -26,6 +26,7 @@ import tqdm as tqdm
 # rdkit for molecular modelling
 from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
+
 from torch_geometric.data import DataLoader
 from torch_geometric.datasets import MoleculeNet
 from torch_geometric.nn import (
@@ -110,6 +111,8 @@ class MaskedWeightedScaledMAE(nn.Module):
 
 
 class MaskedRMSE(nn.Module):
+    """
+    """
     def __init__(self, eps: float = 1e-8, reduction: str = "mean"):
         super().__init__()
         assert reduction in {"mean", "none"}
@@ -148,23 +151,6 @@ def r2_score(preds: torch.Tensor, targets: torch.Tensor) -> float:
     ss_tot = torch.sum((targets - torch.mean(targets)) ** 2)
     return 1 - ss_res / ss_tot if ss_tot != 0 else float("nan")
 
-
-def scaffold(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    return MurckoScaffold.MurckoScaffoldSmiles(mol=mol)
-
-
-def smiles_to_pytorch_graph(smiles):
-    """
-    Pytorch geometric for molecular graphs
-
-    Now that we understand the fundamentals of graph representation for molecules, let's implement this using Pytorch Geometric (PyG),
-    a library specifically designed for graph neural networks
-    """
-    # Get the graph representation
-    node_features, adjacency, edge_features, edge_indices = advanced_smiles_to_graph(
-        smiles
-    )
 
 
 # Put this near your loss definition(s)
@@ -410,7 +396,7 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #        print(f"We have edge dim {edge_dim} and hidden channels {hidden_channels}")
 #
 #        # Where is edge_encoder used?
-#        
+#
 #        self.edge_encoder = nn.Sequential(
 #            nn.Linear(edge_dim, hidden_channels),
 #            nn.ReLU(),
@@ -463,7 +449,7 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #
 #        # ---- (E) Output head ----
 #        mlp_in = self.hidden_channels
-#        
+#
 #        self.mlp_out = nn.Sequential(
 #            nn.Linear(mlp_in, hidden_channels),
 #            nn.ReLU(),
@@ -502,7 +488,7 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #            drop_mask = torch.rand(edge_attr.size(0), device=edge_attr.device) < self.edge_feature_dropout
 #            edge_attr = edge_attr.clone()
 #            edge_attr[drop_mask] = 0.0
-#        
+#
 #        enc_edge = self.edge_encoder(edge_attr)  # [E, H]
 #        h_prev = None
 #
@@ -513,7 +499,7 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #            x = norm(x)
 #            x = F.relu(x)
 #            x = F.dropout(x, p=self.dropout_p, training=self.training)
-#            
+#
 #            if self.use_gru:
 #                if h_prev is None:
 #                    h_prev = x.new_zeros(1, x.size(0), self.hidden_channels)
@@ -527,14 +513,14 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
 #            g = self.readout(x, batch)
 #        else:
 #            g = self._pool(x, batch)
-#            
+#
 #        if self.u_proj is not None:
 #            if u is None:
 #                u = torch.zeros(g.size(0), self.global_feat_dim, device=g.device)
 #            elif u.dim()==1:
 #                u = u.unsqueeze(0).expand(g.size(0), -1)
 #            g = g + self.u_proj(u.to(g.device))    # same width as g
-#        
+#
 #        return self.mlp_out(g)
 
 
@@ -802,7 +788,7 @@ def train_and_evaluate_edge(
                 batch=data.batch,
                 u=getattr(data, "u", None),   # <<---- AND HERE (if you ever use no edge_attr)
             )
-    
+
     def _masked_flat(pred, target, mask):
         if mask is None:
             return pred.reshape(-1), target.reshape(-1)
@@ -847,7 +833,7 @@ def train_and_evaluate_edge(
                 loss = criterion_train(out, y, y_mask)
 
             scaler.scale(loss).backward()
-            # gradient clipping part 
+            # gradient clipping part
             scaler.unscale_(optimizer)  # required before clipping when using AMP
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)

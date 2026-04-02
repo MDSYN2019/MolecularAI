@@ -13,7 +13,7 @@ from mol_torch_gnn_implementation import GINELayer, train_and_evaluate_edge
 
 
 """
-Defining the path for where to get the training and test data 
+Defining the path for where to get the training and test data
 """
 
 PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025"

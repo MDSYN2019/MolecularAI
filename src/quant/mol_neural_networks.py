@@ -1,5 +1,5 @@
 """
-Tensorflow and deepchem implementation of the neural networks that are required 
+Tensorflow and deepchem implementation of the neural networks that are required
 """
 # import the abstract classes
 from typing import Tuple, Type, Any
@@ -61,19 +61,19 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
 
     inherit from BaseModel as well as molecular_modelling_neural_network base class
     """
-    
+
     layer_points: int
     n_hidden_layers: int
     learning_rate: float
     n_outputs: int
     data_directory: str
 
-    # default parameters that can be changed 
+    # default parameters that can be changed
     training_data: Any = None # training data to be filled in
     # the declartion that follows needs to be fixed..
     _keras_model: Any = None # dummy variable to hold keras model for now
     _generate_model: Any = None
-    _compile_model: Any = None 
+    _compile_model: Any = None
     _fit_model: Any = None
 
     def next_batch(
@@ -94,9 +94,9 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
         self.data_and_label = (np.asarray(data_shuffle), np.asarray(labels_shuffle))
 
     def gen_training_data(self) -> Any:
-        """ 
+        """
         Connect to the postgres database and produce the training data for inputting into
-        the deepchem model 
+        the deepchem model
         """
         connection = PostgresConnect(
             user="postgres",
@@ -133,11 +133,11 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
     def _fit_model(self) -> None:
         assert self.training_data != None, "we need training data to be produced first!"
         self._keras_model.fit(self.training_data)
-        
+
     def prepare_model(self) -> None:
         """
-        run the private functions for model training and model fitting 
-        for the deepchem model 
+        run the private functions for model training and model fitting
+        for the deepchem model
         """
         keras_model = tf.keras.Sequential(
             [
@@ -154,7 +154,7 @@ class NNParameters(BaseModel, molecular_modelling_neural_network):
             metrics=["accuracy"],
         )
         keras_model.fit(self.training_data)
-        
+
 def historical():
     # Set up parameters for the neural network
     # this bit can be ignored by using the keras module

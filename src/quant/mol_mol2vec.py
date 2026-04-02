@@ -15,18 +15,18 @@ try:
     from rdkit.Chem import AllChem
     from rdkit.Chem import Draw
 except:
-    print("Could not find packages")    
+    print("Could not find packages")
 
-try:                                                                                                                                                 
-    conn = psycopg2.connect("dbname='emolecules' user='sang' host='localhost' password='Blad1bl@1234'") 
-except:                                                                                                                                              
-    print("Did not connect to database")                                                                                                             
+try:
+    conn = psycopg2.connect("dbname='emolecules' user='sang' host='localhost' password='Blad1bl@1234'")
+except:
+    print("Did not connect to database")
 
 cur = conn.cursor()
 #cur.execute("SELECT * FROM raw_data LIMIT 1000;")
-cur.execute("SELECT DISTINCT smiles, emol_id from raw_data LIMIT 100;")                                   
+cur.execute("SELECT DISTINCT smiles, emol_id from raw_data LIMIT 100;")
 
-database = cur.fetchall()            
+database = cur.fetchall()
 
 # Convert the database into a numpy (np.asarray)
 
@@ -43,8 +43,5 @@ aa_smis = ['CC(N)C(=O)O', 'N=C(N)NCCCC(N)C(=O)O', 'NC(=O)CC(N)C(=O)O', 'NC(CC(=O
           'CC(O)C(N)C(=O)O', 'NC(Cc1c[nH]c2ccccc12)C(=O)O', 'NC(Cc1ccc(O)cc1)C(=O)O',
           'CC(C)C(N)C(=O)O']
 
-aa_codes = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLU', 'GLN', 'GLY', 'HIS', 'ILE', 
+aa_codes = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLU', 'GLN', 'GLY', 'HIS', 'ILE',
             'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
-    
-
-

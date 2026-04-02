@@ -1,11 +1,11 @@
-"""@package QSAR 
+"""@package QSAR
 
 
-Builidng a simple prediction model using deep neural networks. 
+Builidng a simple prediction model using deep neural networks.
 
 We first want to create a classification modela nad label the positive label as [0,1] and the negative label as a [1,0]
 two-dimensional OneHot vector. If you create a model using keras model object, you can get the expeceted value of each of the
-above two dimensions 
+above two dimensions
 
 
 
@@ -16,8 +16,8 @@ above two dimensions
 from functools import reduce
 from multiprocessing import Pool, cpu_count
 import sys, os, argparse
-import numpy as np 
-import pandas as pd 
+import numpy as np
+import pandas as pd
 
 ## RDKit Modules
 
@@ -32,8 +32,8 @@ from rdkit.Chem import rdFMCS
 from rdkit.Chem import MACCSkeys
 from rdkit.Chem.AtomPairs import Pairs
 
-## Additional Machine learning modules 
- 
+## Additional Machine learning modules
+
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, f1_score
 from tensorflow.python.keras.layers import Iput

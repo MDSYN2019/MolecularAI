@@ -28,13 +28,13 @@ def check_querymol( fgs_smi ):
 def gen_frag_dict( mol_list ):
     frag_dict = {}
     for mol in mol_list:
-    fgs = fragmenter( mol )
-    qmol = check_querymol( fgs )
-    for i, j in enumerate( qmol ):
-        if j in frag_dict.keys():
-            frag_dict[ j ].add( str(fgs[i]) )
-        else:
-            frag_dict[ j ] = set( [str(fgs[i])] )
+        fgs = fragmenter( mol)
+        qmol = check_querymol( fgs )
+        for i, j in enumerate( qmol ):
+            if j in frag_dict.keys():
+                frag_dict[ j ].add( str(fgs[i]) )
+            else:
+                frag_dict[ j ] = set( [str(fgs[i])] )
     keys = frag_dict.keys()
     for key in keys:
         frag_dict[ key ] = list( frag_dict[key] )
@@ -67,5 +67,5 @@ def struct_gen( query_mol, frag_dict ):
                 continue
 
             ps = [ Chem.MolFromSmiles( smi ) for smi in res ][:20]
-        ps = [ mol for mol in ps if calc_tanimoto(query_mol,mol) &lt;= 0.6 and Descriptors.MolWt(mol) &lt;= 500 ]
+        ps = [ mol for mol in ps if calc_tanimoto(query_mol,mol) & lt == 0.6 and Descriptors.MolWt(mol) & lt== 500 ]
         return ps
