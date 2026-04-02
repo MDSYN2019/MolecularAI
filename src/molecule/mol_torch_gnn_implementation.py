@@ -29,6 +29,7 @@ from rdkit.Chem.Scaffolds import MurckoScaffold
 
 from torch_geometric.data import DataLoader
 from torch_geometric.datasets import MoleculeNet
+
 from torch_geometric.nn import (
     GCNConv,
     GINConv,

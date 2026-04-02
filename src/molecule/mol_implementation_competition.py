@@ -4,17 +4,27 @@ import torch
 import numpy as np
 from rdkit import Chem
 
-from mol_functions import mol_to_graph, fix_tg_units, canon_polymer_smiles, load_official, load_tc_dataset, load_tg_dataset, load_ffv_dataset, resolve_conflicts, rdkit_globals
-
-
-
 from torch_geometric.loader import DataLoader
+from sklearn.preprocessing import StandardScaler
+
+# Loading custom mol functions for building features 
+from mol_functions import (mol_to_graph,
+                           fix_tg_units,
+                           canon_polymer_smiles,
+                           load_official,
+                           load_tc_dataset,
+                           load_tg_dataset,
+                           load_ffv_dataset,
+                           resolve_conflicts,
+                           rdkit_globals)
 
 from mol_torch_gnn_implementation import (
     GINELayerUpgraded,
     train_and_evaluate_edge,  # cleaned version with align_targets + mask support
 )
+
 from mol_losses import ContestWMAE
+
 from mol_multitask_utils import (
     attach_multitask_targets,
     compute_scalers,
@@ -23,13 +33,11 @@ from mol_multitask_utils import (
     split_df,
 )
 
-from sklearn.preprocessing import StandardScaler
 
 # ---------------------------
-# Config
+# Environmental variables 
 # ---------------------------
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
-
 NUM_TASKS = len(PROPERTIES)
 PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025/molecule/"
 TRAIN_CSV = f"{PATH}/train.csv"
@@ -264,11 +272,15 @@ model = GINELayerUpgraded(
     norm="batch",          # BatchNorm in blocks; we add LayerNorm before head
     global_feat_dim=U,     # if you pass RDKit/global features
 )
+
 # ---------------------------
 # Train
 # ---------------------------
 
-optimizer = torch.optim.AdamW(add_weight_decay(model, WEIGHT_DECAY), lr=LR, betas=(0.9,0.999), eps=1e-8)
+optimizer = torch.optim.AdamW(add_weight_decay(model, WEIGHT_DECAY),
+                              lr=LR, betas=(0.9,0.999),
+                              eps= 1e-8)
+
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode='min', factor=0.5,
@@ -277,11 +289,10 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     cooldown=1, min_lr=1e-6, verbose=True
 )
 
-
-#scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-#    optimizer, mode='min', factor=0.5, patience=2, threshold=3e-4,
-#    cooldown=3, min_lr=1e-6, verbose=True
-#)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='min', factor=0.5, patience=2, threshold=3e-4,
+    cooldown=3, min_lr=1e-6, verbose=True
+)
 
 
 task_weights = torch.tensor([3.0, 1.0, 1.0, 1.0, 1.0])  # [Tg, FFV, Tc, Density, Rg]
@@ -322,20 +333,6 @@ print(
     results["test_r2"],
 )
 
-"""They’re in z-score (standardized) space.
-
-Your model’s outputs (test_preds) live in the same z-space (that’s what it was trained to predict).
-
-test_targets are also in z-space, with missing labels filled with 0 as a placeholder but ignored via y_mask.
-
-In contrast, your loss (ContestWMAE) converts preds/targets back to original units internally via inverse_transform before computing the weighted MAE. So:
-
-results["test_losses"] ≈ contest wMAE in original units.
-
-results["test_mae"] is a plain MAE in z-space (because it uses _masked_mae on the stored tensors).
-
-"""
-
 
 # Recomputing the original predictions and targets, then getting the mask as well
 
@@ -366,11 +363,8 @@ contest_wmae = (
 
 
 # Creating the properties for the test data
-
 test_df = pd.read_csv(TEST_CSV)
-
 test_graphs, test_ids = [], []
-
 
 # building test graphs
 for _, row in test_df.iterrows():
