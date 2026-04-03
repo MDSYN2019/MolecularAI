@@ -1,4 +1,5 @@
-import os, random
+from __future__ import annotations
+
 import pandas as pd
 import torch
 import optuna
@@ -32,8 +33,10 @@ MINMAX_DICT = {
 }
 
 # ---------- UTILS ----------
-def set_seed(seed=SEED):
-    import torch, numpy as np, random
+def set_seed(seed: int = SEED) -> None:
+    import numpy as np
+    import random
+
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -63,6 +66,38 @@ def inv_std(z, mu=mu_t, sd=sd_t):
 
 ranges_all = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
 
+
+def build_loader(graphs, batch_size: int, shuffle: bool, num_workers: int) -> DataLoader:
+    use_cuda = torch.cuda.is_available()
+    return DataLoader(
+        graphs,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=use_cuda,
+        persistent_workers=num_workers > 0,
+    )
+
+
+def extract_best_val(results: dict, criterion_eval: ContestWMAE, device: torch.device) -> float:
+    if "best_val_loss" in results:
+        return float(results["best_val_loss"])
+    if "val_losses" in results and len(results["val_losses"]) > 0:
+        return float(min(results["val_losses"]))
+
+    preds_z = results.get("val_preds")
+    targets_z = results.get("val_targets")
+    mask = results.get("val_mask")
+    if preds_z is None or targets_z is None or mask is None:
+        raise RuntimeError("Cannot derive validation metric from results.")
+    with torch.no_grad():
+        return float(
+            criterion_eval(
+                preds_z.to(device), targets_z.to(device), mask.float().to(device)
+            ).item()
+        )
+
+
 # ---------- OPTUNA OBJECTIVE ----------
 def objective(trial: optuna.Trial) -> float:
     set_seed(SEED + trial.number)  # small jitter per trial
@@ -77,22 +112,9 @@ def objective(trial: optuna.Trial) -> float:
     patience = trial.suggest_int("patience", 20, 40)
 
     # DataLoaders (batch-size dependent)
-
-    train_loader = DataLoader(
-        df_train["graph"].tolist(),
-        batch_size=batch_size, shuffle=True,
-        num_workers=4, pin_memory=torch.cuda.is_available(), persistent_workers=True
-    )
-    val_loader = DataLoader(
-        df_val["graph"].tolist(),
-        batch_size=batch_size, shuffle=False,
-        num_workers=2, pin_memory=torch.cuda.is_available(), persistent_workers=True
-    )
-    test_loader = DataLoader(
-        df_test["graph"].tolist(),
-        batch_size=batch_size, shuffle=False,
-        num_workers=2, pin_memory=torch.cuda.is_available(), persistent_workers=True
-    )
+    train_loader = build_loader(df_train["graph"].tolist(), batch_size, shuffle=True, num_workers=4)
+    val_loader = build_loader(df_val["graph"].tolist(), batch_size, shuffle=False, num_workers=2)
+    test_loader = build_loader(df_test["graph"].tolist(), batch_size, shuffle=False, num_workers=2)
 
     # counts per split (for weights)
     n_train = counts_from_loader(train_loader, NUM_TASKS, device)
@@ -139,23 +161,7 @@ def objective(trial: optuna.Trial) -> float:
     )
 
     # Get best validation wMAE (robust to different return shapes)
-    if "best_val_loss" in results:
-        best_val = float(results["best_val_loss"])
-    elif "val_losses" in results and len(results["val_losses"]) > 0:
-        best_val = float(min(results["val_losses"]))
-    else:
-        # as a fallback, evaluate on val preds if provided
-        preds_z = results.get("val_preds")
-        targets_z = results.get("val_targets")
-        mask = results.get("val_mask")
-        if preds_z is None or targets_z is None or mask is None:
-            raise RuntimeError("Cannot derive validation metric from results.")
-        with torch.no_grad():
-            best_val = float(
-                criterion_eval(
-                    preds_z.to(device), targets_z.to(device), mask.float().to(device)
-                ).item()
-            )
+    best_val = extract_best_val(results, criterion_eval, device)
 
     # Optional: report to Optuna for pruning (won't prune unless you use a pruner)
     trial.report(best_val, step=1)
