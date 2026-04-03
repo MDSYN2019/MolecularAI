@@ -17,6 +17,7 @@ from mol_functions import (
     load_tg_dataset,
     mol_to_graph,
     rdkit_globals,
+    randomize_smiles
 )
 from mol_losses import ContestWMAE
 from mol_multitask_utils import (
@@ -26,11 +27,13 @@ from mol_multitask_utils import (
     ranges_from_minmax_dict,
     split_df,
 )
-from mol_torch_gnn_implementation import GINELayerUpgraded, train_and_evaluate_edge
+from mol_torch_gnn_implementation import  train_and_evaluate_edge
+from mol_models import GINELayerUpgraded
 
 # ---------------------------
 # Configuration
 # ---------------------------
+
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 NUM_TASKS = len(PROPERTIES)
 PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025/molecule/"
@@ -85,22 +88,21 @@ def ranges_from_frame(
     p_low: float = 1.0,
     p_high: float = 99.0,
 ) -> torch.Tensor:
+    """
+    Per property in the pandas table, return the tensor containing the ranges
+    for each value 
+    """
     ranges = []
     for prop in properties:
-        series = pd.to_numeric(df[prop], errors="coerce").dropna()
+        series = pd.to_numeric(df[prop], errors="coerce").dropna() # convert column to numeric values
         if len(series) == 0:
             ranges.append(1.0)
             continue
-        lo, hi = np.percentile(series, [p_low, p_high])
-        ranges.append(max(float(hi - lo), 1e-8))
+        lo, hi = np.percentile(series, [p_low, p_high]) # compute the 1% 99% value of the series
+        ranges.append(max(float(hi - lo), 1e-8)) 
     return torch.tensor(ranges, dtype=torch.float32, device=device)
 
 
-def randomize_smiles(smiles: str) -> str:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return smiles
-    return Chem.MolToSmiles(mol, doRandom=True, canonical=False)
 
 
 def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFrame:
@@ -232,6 +234,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     _ = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
 
+    # 
     ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
     ranges_val = ranges_from_frame(df_val, PROPERTIES, device)
     ranges_test = ranges_from_frame(df_test, PROPERTIES, device)
