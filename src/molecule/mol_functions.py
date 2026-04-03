@@ -19,7 +19,7 @@ from sklearn.preprocessing import StandardScaler
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 logging.basicConfig(level=logging.INFO)
 
-# Define type of bond 
+# Define type of bond
 BOND_TYPE_TO_IDX = {
     rdchem.BondType.SINGLE: 0,
     rdchem.BondType.DOUBLE: 1,
@@ -27,7 +27,7 @@ BOND_TYPE_TO_IDX = {
     rdchem.BondType.AROMATIC: 3,
 }
 
-# Define type of stereochemistry 
+# Define type of stereochemistry
 STEREO_TO_IDX = {
     rdchem.BondStereo.STEREONONE: 0,
     rdchem.BondStereo.STEREOZ:    1,
@@ -61,7 +61,7 @@ CHI_CHOICES = [
     Chem.rdchem.ChiralType.CHI_OTHER,
 ]
 
-# define the sterochemistry 
+# define the sterochemistry
 STEREO_CHOICES = [
     Chem.rdchem.BondStereo.STEREONONE,
     Chem.rdchem.BondStereo.STEREOZ,
@@ -125,7 +125,7 @@ def randomize_smiles(s):
     m = Chem.MolFromSmiles(s)
     return Chem.MolToSmiles(m, doRandom=True, canonical=False) if m else s
 
-def return_molecular_graph(adjacency, node_labels) -> nx.Graph: 
+def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
     """Convert adjacency + labels into a simple NetworkX undirected graph."""
     G = nx.Graph()
     for i, label in enumerate(node_labels):
@@ -210,12 +210,12 @@ def smiles_to_graph(smiles_mol, elements=["C", "O", "N", "H", "Other"]):
 
     # Create container for the node features
     node_features = np.zeros((n_atoms, len(elements)), dtype=np.float32)
-    
+
     for atom in mol.GetAtoms():
         idx = atom.GetIdx()
         symbol = atom.GetSymbol()
         node_features[idx, elements.index(symbol) if symbol in elements else -1] = 1.0
-    
+
     adjacency, edge_features, edge_indices = create_adjacency_matrix(n_atoms, mol)
     return node_features, adjacency, edge_features, edge_indices
 
@@ -313,12 +313,12 @@ def mol_to_graph(smiles: str) -> Data:
 
     x = torch.stack([featurize_atom(a) for a in mol.GetAtoms()], dim=0)  # [N, Dx], float32
     ei, ea = [], []
-    for bond in mol.GetBonds(): 
+    for bond in mol.GetBonds():
         i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx() # get edge indices
         bf = bond_features(bond)  # [15], float32  - create the edge features
-        ei.append((i, j)); ea.append(bf) # append bond feature one way 
-        ei.append((j, i)); ea.append(bf) # append bond feature the other way 
-        
+        ei.append((i, j)); ea.append(bf) # append bond feature one way
+        ei.append((j, i)); ea.append(bf) # append bond feature the other way
+
     edge_index = torch.tensor(ei, dtype=torch.long).t().contiguous() if ei else torch.empty((2, 0), dtype=torch.long)
     edge_attr  = torch.stack(ea, dim=0) if ea else torch.empty((0, 15), dtype=torch.float32)
 
@@ -328,7 +328,7 @@ def mol_to_graph(smiles: str) -> Data:
 
 def atom_features(atom):
     """
-    Extract a feature vector for an RDKit atom - per atom node features to be added in 
+    Extract a feature vector for an RDKit atom - per atom node features to be added in
 
     Features included:
         - Atomic number
@@ -366,7 +366,7 @@ def atom_features(atom):
 def bond_features(bond):
     """
     Depending on the bond type we do detect,
-    one-hot vectorize the vector 
+    one-hot vectorize the vector
     """
     # one-hot bond type (4)
     bt = [0,0,0,0]
@@ -376,10 +376,10 @@ def bond_features(bond):
     elif t == Chem.rdchem.BondType.TRIPLE:  bt[2]=1
     elif t == Chem.rdchem.BondType.AROMATIC:bt[3]=1
     # stereo (none, Z, E, any) -> 4
-    st = [0,0,0,0]; s = int(bond.GetStereo()) # store in sterotype one-hot vector 
-    if s in (0,1,2,3): st[s]=1 
+    st = [0,0,0,0]; s = int(bond.GetStereo()) # store in sterotype one-hot vector
+    if s in (0,1,2,3): st[s]=1
     # direction (NONE, WEDGE, DASH, ENDDOWNRIGHT, ENDUPRIGHT) -> 5
-    dir_map = {0:0,1:1,2:2,3:3,4:4} # direction 
+    dir_map = {0:0,1:1,2:2,3:3,4:4} # direction
     d = [0,0,0,0,0]; di = dir_map.get(int(bond.GetBondDir()),0); d[di]=1
     # flags
     flags = [int(bond.GetIsConjugated()), int(bond.IsInRing())]
@@ -435,7 +435,7 @@ def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
     Convert a SMILES string to graph representation with advanced features.
 
     This is a developed version of all the feature building functions per node and per bond that we have made above
-    
+
     """
     if smiles is None:
         raise ValueError("Invalid SMILES string")
@@ -713,4 +713,3 @@ def align_targets(
         y_mask = y_mask.to(y.device, dtype=y.dtype)
 
     return y, y_mask
-

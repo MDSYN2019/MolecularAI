@@ -74,4 +74,3 @@ def align_targets(
         y_mask = y_mask.to(y.device, dtype=y.dtype)
 
     return y, y_mask
-
