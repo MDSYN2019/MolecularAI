@@ -17,7 +17,9 @@ from mol_functions import (
     load_tg_dataset,
     mol_to_graph,
     rdkit_globals,
-    randomize_smiles
+    randomize_smiles,
+    advanced_smiles_to_graph
+
 )
 from mol_losses import ContestWMAE
 from mol_multitask_utils import (
@@ -91,7 +93,9 @@ def ranges_from_frame(
 ) -> torch.Tensor:
     """
     Per property in the pandas table, return the tensor containing the ranges
-    for each value 
+    for each value  - taken from the default values in the function, we are returning
+    the 1%-percentile and 99th percentile, and getting the absolute value of the difference
+    between them
     """
     ranges = []
     for prop in properties:
@@ -103,12 +107,11 @@ def ranges_from_frame(
         ranges.append(max(float(hi - lo), 1e-8)) 
     return torch.tensor(ranges, dtype=torch.float32, device=device)
 
-
-
-
 def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFrame:
     """
-    Attaching the 'universal' features as listed in the rdkit list 
+    Attaching the 'universal' features as listed in the rdkit list
+
+    at the moment, these are on a general molecule level, rather than a node level or the edge level
     """
     df = df.copy().reset_index(drop=True)
     df["graph"] = df["graph"].astype(object)
@@ -121,9 +124,8 @@ def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFram
     df["u"] = u_vectors # insert into the pandas table 
 
     for idx, graph in df["graph"].items():
-        graph.u = df.at[idx, "u"].unsqueeze(0)
+        graph.u = df.at[idx, "u"].unsqueeze(0) # 
     return df
-
 
 def make_loaders(
     df_train: pd.DataFrame,
@@ -153,6 +155,7 @@ def make_loaders(
 
 def build_training_frame() -> pd.DataFrame:
     """
+    build training data 
     """
     official = load_official(TRAIN_CSV)
     supplemental = [
@@ -160,16 +163,16 @@ def build_training_frame() -> pd.DataFrame:
         load_tg_dataset("train_supplement/dataset3.csv"),
         load_ffv_dataset("train_supplement/dataset4.csv", header_has_names=False),
     ]
-
+    # combine the official data and the supplementary data that was provided 
     combined = pd.concat([official] + supplemental, ignore_index=True, sort=False)
-
     
     for col in NUMERIC_COLS: # loop through the numeric columns 
-        combined[col] = pd.to_numeric(combined[col], errors="coerce")
+        combined[col] = pd.to_numeric(combined[col], errors="coerce") # convert each column to numeric columns
 
     combined["SMILES"] = combined["SMILES"].map(canon_polymer_smiles) # standardize the smiles
     combined = combined[combined["SMILES"].notna()].copy() # generate a copy with non-na data
 
+    # clip data within a range 
     combined.loc[combined["FFV"].notna(), "FFV"] = combined["FFV"].clip(0.0, 1.0)
     combined.loc[combined["Density"].notna(), "Density"] = combined["Density"].clip(
         lower=0.3,
@@ -179,11 +182,13 @@ def build_training_frame() -> pd.DataFrame:
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
-    combined["graph"] = combined["SMILES"].apply(mol_to_graph)
+    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_graph) # create the graph column representation 
     return combined
 
 
 def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> tuple[DataLoader, list[int]]:
+    """
+    """
     test_graphs, test_ids = [], []
     for _, row in test_df.iterrows():
         smiles = str(row["SMILES"]).strip()
@@ -201,16 +206,20 @@ def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> 
 
 
 def predict(model, loader: DataLoader, device: torch.device, inv_std):
+    """
+    prediction with the trained model 
+    """
     model.to(device)
     model.eval()
     chunks = []
 
-    with torch.no_grad():
+    with torch.no_grad():  # turn off autograd
         for data in loader:
             data = data.to(device)
             data.x = data.x.float()
             if getattr(data, "edge_attr", None) is not None:
                 data.edge_attr = data.edge_attr.float()
+
             out = model(
                 data.x, # node featues                 
                 data.edge_index, # edge indices 
@@ -223,16 +232,17 @@ def predict(model, loader: DataLoader, device: torch.device, inv_std):
     return torch.cat(chunks, dim=0).numpy()
 
 
-def main():
-    train_df = build_training_frame()
+def main() -> None:
+    train_df = build_training_frame() # this now utilizes the advanced_smiles_to_features - which implemented node level and bond level features
     _ = pd.read_csv(TEST_CSV)
 
-    u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0)
-    u_scaler = StandardScaler().fit(u_train)
+    u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0) # global level features for each molecule also added 
+    u_scaler = StandardScaler().fit(u_train) # scale the global feature for each molecule 
 
     df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
     scalers = compute_scalers(df_train, PROPERTIES)
 
+    # need a better explanation of what this is doing
     df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
     df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
     df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
@@ -244,6 +254,7 @@ def main():
     train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if device.type == "cuda":
         torch.backends.cudnn.benchmark = True
         torch.backends.cuda.matmul.allow_tf32 = True
@@ -269,6 +280,7 @@ def main():
 
     sample = next(iter(train_loader))
     edge_attr = getattr(sample, "edge_attr", None)
+
     if edge_attr is None:
         raise RuntimeError(
             "GINELayer expects edge features; got None. "
@@ -295,6 +307,7 @@ def main():
         betas=(0.9, 0.999),
         eps=1e-8,
     )
+    
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="min",

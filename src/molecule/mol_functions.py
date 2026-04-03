@@ -125,7 +125,7 @@ def randomize_smiles(s):
     m = Chem.MolFromSmiles(s)
     return Chem.MolToSmiles(m, doRandom=True, canonical=False) if m else s
 
-def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
+def return_molecular_graph(adjacency, node_labels) -> nx.Graph: 
     """Convert adjacency + labels into a simple NetworkX undirected graph."""
     G = nx.Graph()
     for i, label in enumerate(node_labels):
@@ -305,7 +305,6 @@ def smiles_to_pytorch_graph(smiles):
         smiles
     )
 
-
 def mol_to_graph(smiles: str) -> Data:
     """Convert SMILES into a PyG Data object with atom, bond and global features."""
     mol = Chem.MolFromSmiles(smiles)
@@ -314,11 +313,12 @@ def mol_to_graph(smiles: str) -> Data:
 
     x = torch.stack([featurize_atom(a) for a in mol.GetAtoms()], dim=0)  # [N, Dx], float32
     ei, ea = [], []
-    for bond in mol.GetBonds():
-        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-        bf = bond_features(bond)  # [15], float32
-        ei.append((i, j)); ea.append(bf)
-        ei.append((j, i)); ea.append(bf)
+    for bond in mol.GetBonds(): 
+        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx() # get edge indices
+        bf = bond_features(bond)  # [15], float32  - create the edge features
+        ei.append((i, j)); ea.append(bf) # append bond feature one way 
+        ei.append((j, i)); ea.append(bf) # append bond feature the other way 
+        
     edge_index = torch.tensor(ei, dtype=torch.long).t().contiguous() if ei else torch.empty((2, 0), dtype=torch.long)
     edge_attr  = torch.stack(ea, dim=0) if ea else torch.empty((0, 15), dtype=torch.float32)
 
@@ -444,6 +444,7 @@ def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
     mol = Chem.AddHs(mol)
     n_atoms = mol.GetNumAtoms()
 
+    # --------------- CREATING NODE LEVEL FEATURES ---------------------
     node_features = []
     # molecular_properties = get_molecular_properties(mol)
     for atom in mol.GetAtoms():
@@ -510,7 +511,7 @@ def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
     node_features = np.array(node_features)
     logging.info(f"The final node features we have combined is: {node_features}")
 
-    # Creating the adjacency matrix and edge features
+    # ------------- CREATING THE ADJACENCY MATRIX AND EDGE FEATURES ----------------
 
     adjacency = np.zeros((n_atoms, n_atoms))
     edge_features = []

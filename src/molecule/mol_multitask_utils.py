@@ -32,6 +32,8 @@ def compute_scalers(df_train: pd.DataFrame, properties: Iterable[str]) -> dict:
 def attach_multitask_targets(
     df: pd.DataFrame, scalers: dict, properties: Iterable[str]
 ) -> pd.DataFrame:
+    """
+    """
     df = df.copy()
     for i, row in df.iterrows():
         g: Data = row["graph"]
