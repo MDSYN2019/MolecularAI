@@ -17,7 +17,7 @@ Number of connected hydrogens.
 from mol_functions import (
     advanced_smiles_to_graph,
     mol_to_graph,
-    align_targets,    
+    align_targets,
 )
 
 import logging
@@ -57,14 +57,14 @@ class MaskedWeightedScaledMAE(nn.Module):
     mins, maxs: 1D tensors [T] of per-property min / max in ORIGINAL UNITS.
 
     prop_weights: 1D tensor [T] that sums to 1 (e.g., from label availability).
-    
+
     inverse_transform: optional callable(pred)->pred_in_original_units and
                        callable(target)->target_in_original_units (affine recommended).
                        If None, assumes inputs already in original units.
 
-    
+
     eps: small constant to avoid division by zero in ranges.
-    
+
     reduction: "mean" returns scalar; "none" returns vector of scaled MAE per task.
     """
 
@@ -79,13 +79,13 @@ class MaskedWeightedScaledMAE(nn.Module):
     ):
         super().__init__()
         assert reduction in {"mean", "none"}
-        
-        self.register_buffer("mins", mins.float()) # what is register_buffer doing here? - we keep track of the minimum values 
+
+        self.register_buffer("mins", mins.float()) # what is register_buffer doing here? - we keep track of the minimum values
         self.register_buffer("maxs", maxs.float()) # we keep track of the maximum vlaues
 
         w = prop_weights.float() # convert to floats
-        self.register_buffer("weights", w / w.sum().clamp_min(1e-12)) # compute and register the weights  - normalize 
-        self.inverse_transform = inverse_transform # inverse transform 
+        self.register_buffer("weights", w / w.sum().clamp_min(1e-12)) # compute and register the weights  - normalize
+        self.inverse_transform = inverse_transform # inverse transform
         self.eps = eps
         self.reduction = reduction
 
@@ -93,8 +93,8 @@ class MaskedWeightedScaledMAE(nn.Module):
         # Align shapes upstream if needed: pred,target,mask -> [B, T]
         if self.inverse_transform is not None:
             # Map back to ORIGINAL UNITS before computing MAE
-            pred = self.inverse_transform(pred)  # convert prediction to original units 
-            target = self.inverse_transform(target) # convert target to original units 
+            pred = self.inverse_transform(pred)  # convert prediction to original units
+            target = self.inverse_transform(target) # convert target to original units
 
         # per-sample absolute error, masked
         abs_err = (pred - target).abs() * mask  # [B, T]
@@ -170,7 +170,7 @@ def train_and_evaluate(
     float("inf")
 
     for epoch in tqdm.tqdm(range(1, epochs + 1)):
-        # training mode 
+        # training mode
         model.train()
         train_loss = 0
         for data in train_loader:
@@ -307,8 +307,8 @@ def train_and_evaluate_edge(
         if training:
             data = data.clone()
             data = drop_edges_(data, p=0.15)
-            
-        # if we do have edges in our input     
+
+        # if we do have edges in our input
         if hasattr(data, "edge_attr") and data.edge_attr is not None:
             return model(
                 data.x.float(),
@@ -519,7 +519,7 @@ if __name__ == "__main__":
     logging.info(dataset)
     indices = torch.randperm(len(dataset))
     logging.info(indices)
-    
+
     # train_and_evaluate()
     pooling_results = compare_pooling_methods(
         dataset, train_loader, val_loader, test_loader

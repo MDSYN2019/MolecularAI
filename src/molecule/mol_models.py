@@ -391,6 +391,3 @@ class GINELayerUpgraded(nn.Module):
         g = self.pre_head_norm(g)
 
         return self.mlp_out(g)
-
-
-

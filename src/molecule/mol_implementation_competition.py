@@ -122,7 +122,7 @@ def ranges_from_frame(
             ranges.append(1.0)
             continue
         lo, hi = np.percentile(series, [p_low, p_high]) # compute the 1% 99% value of the series
-        ranges.append(max(float(hi - lo), 1e-8)) 
+        ranges.append(max(float(hi - lo), 1e-8))
     return torch.tensor(ranges, dtype=torch.float32, device=device)
 
 def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFrame:
@@ -136,13 +136,13 @@ def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFram
 
     u_vectors = []
     for smiles in df["SMILES"]:
-        values = rdkit_globals(smiles) # compute vector of RD_FEATURES 
+        values = rdkit_globals(smiles) # compute vector of RD_FEATURES
         values = u_scaler.transform(values.reshape(1, -1))[0] # transform the features with the standardscaler to normalize
-        u_vectors.append(torch.tensor(values, dtype=torch.float32)) # convert to pytorch tensor and append to output list 
-    df["u"] = u_vectors # insert into the pandas table 
+        u_vectors.append(torch.tensor(values, dtype=torch.float32)) # convert to pytorch tensor and append to output list
+    df["u"] = u_vectors # insert into the pandas table
 
     for idx, graph in df["graph"].items():
-        graph.u = df.at[idx, "u"].unsqueeze(0) # 
+        graph.u = df.at[idx, "u"].unsqueeze(0) #
     return df
 
 def make_loaders(
@@ -173,7 +173,7 @@ def make_loaders(
 
 def build_training_frame() -> pd.DataFrame:
     """
-    build training data 
+    build training data
     """
     official = load_official(TRAIN_CSV)
     supplemental = [
@@ -181,16 +181,16 @@ def build_training_frame() -> pd.DataFrame:
         load_tg_dataset("train_supplement/dataset3.csv"),
         load_ffv_dataset("train_supplement/dataset4.csv", header_has_names=False),
     ]
-    # combine the official data and the supplementary data that was provided 
+    # combine the official data and the supplementary data that was provided
     combined = pd.concat([official] + supplemental, ignore_index=True, sort=False)
-    
-    for col in NUMERIC_COLS: # loop through the numeric columns 
+
+    for col in NUMERIC_COLS: # loop through the numeric columns
         combined[col] = pd.to_numeric(combined[col], errors="coerce") # convert each column to numeric columns
 
     combined["SMILES"] = combined["SMILES"].map(canon_polymer_smiles) # standardize the smiles
     combined = combined[combined["SMILES"].notna()].copy() # generate a copy with non-na data
 
-    # clip data within a range 
+    # clip data within a range
     combined.loc[combined["FFV"].notna(), "FFV"] = combined["FFV"].clip(0.0, 1.0)
     combined.loc[combined["Density"].notna(), "Density"] = combined["Density"].clip(
         lower=0.3,
@@ -201,6 +201,7 @@ def build_training_frame() -> pd.DataFrame:
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
     combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation 
+
     return combined
 
 
@@ -225,7 +226,7 @@ def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> 
 
 def predict(model, loader: DataLoader, device: torch.device, inv_std):
     """
-    prediction with the trained model 
+    prediction with the trained model
     """
     model.to(device)
     model.eval()
@@ -239,10 +240,10 @@ def predict(model, loader: DataLoader, device: torch.device, inv_std):
                 data.edge_attr = data.edge_attr.float()
 
             out = model(
-                data.x, # node featues                 
-                data.edge_index, # edge indices 
-                data.edge_attr, # edge attribute 
-                batch=data.batch, 
+                data.x, # node featues
+                data.edge_index, # edge indices
+                data.edge_attr, # edge attribute
+                batch=data.batch,
                 u=getattr(data, "u", None),
             )
             chunks.append(inv_std(out).detach().cpu())
@@ -254,8 +255,8 @@ def main() -> None:
     train_df = build_training_frame() # this now utilizes the advanced_smiles_to_features - which implemented node level and bond level features
     _ = pd.read_csv(TEST_CSV)
 
-    u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0) # global level features for each molecule also added 
-    u_scaler = StandardScaler().fit(u_train) # scale the global feature for each molecule 
+    u_train = np.stack([rdkit_globals(s) for s in train_df["SMILES"]], axis=0) # global level features for each molecule also added
+    u_scaler = StandardScaler().fit(u_train) # scale the global feature for each molecule
 
     df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
     scalers = compute_scalers(df_train, PROPERTIES)
@@ -279,7 +280,7 @@ def main() -> None:
         torch.backends.cudnn.allow_tf32 = True
     _ = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
 
-    # 
+    #
     ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
     ranges_val = ranges_from_frame(df_val, PROPERTIES, device)
     ranges_test = ranges_from_frame(df_test, PROPERTIES, device)
@@ -325,7 +326,7 @@ def main() -> None:
         betas=(0.9, 0.999),
         eps=1e-8,
     )
-    
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="min",
@@ -380,6 +381,7 @@ def main() -> None:
     
     logger.info("Per-property MAE: %s", per_prop_mae.tolist())
     logger.info("Contest wMAE: %s", contest_wmae)
+
 
     test_df = pd.read_csv(TEST_CSV)
     test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)

@@ -59,7 +59,7 @@ def extract_best_val(results: dict, criterion_eval: ContestWMAE, device: torch.d
             ).item()
         )
 
-    
+
 # ---------- CONFIG ----------
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 NUM_TASKS = len(PROPERTIES)
@@ -88,7 +88,7 @@ train_df["graph"] = train_df["SMILES"].apply(mol_to_graph) # this may need to be
 df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED) # split to train, validation and test datasets
 scalers = compute_scalers(df_train, PROPERTIES)
 
-df_train = attach_multitask_targets(df_train, scalers, PROPERTIES) 
+df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
 df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
 df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
 
