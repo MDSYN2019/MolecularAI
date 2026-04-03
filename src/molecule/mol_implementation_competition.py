@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import torch
 import logging
-from rdkit import Chem
 from sklearn.preprocessing import StandardScaler
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
 from mol_functions import (
@@ -15,11 +15,9 @@ from mol_functions import (
     load_official,
     load_tc_dataset,
     load_tg_dataset,
-    mol_to_graph,
     rdkit_globals,
     randomize_smiles,
-    advanced_smiles_to_graph
-
+    advanced_smiles_to_graph,
 )
 from mol_losses import ContestWMAE
 from mol_multitask_utils import (
@@ -60,6 +58,26 @@ MINMAX_DICT = {
 NUMERIC_COLS = ["Tg", "FFV", "Tc", "Density", "Rg"]
 
 logger = logging.getLogger(__name__)
+
+def advanced_smiles_to_pyg_data(smiles: str) -> Data:
+    """
+    Build a PyG Data object from ``advanced_smiles_to_graph`` outputs.
+    """
+    node_features, _, edge_features, edge_indices = advanced_smiles_to_graph(smiles)
+
+    x = torch.tensor(node_features, dtype=torch.float32)
+    if edge_indices:
+        edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
+    else:
+        edge_index = torch.empty((2, 0), dtype=torch.long)
+
+    if len(edge_features) > 0:
+        edge_attr = torch.tensor(edge_features, dtype=torch.float32)
+    else:
+        edge_dim = 6  # 4 bond-type one-hots + is_conjugated + is_in_ring
+        edge_attr = torch.empty((0, edge_dim), dtype=torch.float32)
+
+    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, smiles=smiles)
 
 
 def add_weight_decay(model: torch.nn.Module, weight_decay: float):
@@ -182,7 +200,7 @@ def build_training_frame() -> pd.DataFrame:
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
-    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_graph) # create the graph column representation 
+    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation 
     return combined
 
 
@@ -193,7 +211,7 @@ def build_test_graph_loader(test_df: pd.DataFrame, u_scaler: StandardScaler) -> 
     for _, row in test_df.iterrows():
         smiles = str(row["SMILES"]).strip()
         try:
-            graph = mol_to_graph(smiles)
+            graph = advanced_smiles_to_pyg_data(smiles)
             values = rdkit_globals(smiles)
             values = u_scaler.transform(values.reshape(1, -1))[0]
             graph.u = torch.tensor(values, dtype=torch.float32).unsqueeze(0)
