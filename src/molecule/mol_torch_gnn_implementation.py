@@ -359,7 +359,7 @@ def train_and_evaluate_edge(
             data = data.to(device)
             optimizer.zero_grad(set_to_none=True)
 
-            with torch.cuda.amp.autocast(enabled=amp_enabled):
+            with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                 out = forward_model(data, training=True)
                 y_raw, y_mask = data.y, getattr(data, "y_mask", None)
                 if y_mask is None:  # NaN -> mask
@@ -391,7 +391,7 @@ def train_and_evaluate_edge(
             with torch.no_grad():
                 for data in val_loader:
                     data = data.to(device)
-                    with torch.cuda.amp.autocast(enabled=amp_enabled):
+                    with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                         out = forward_model(data, training=False)
                         y_raw, y_mask = data.y, getattr(data, "y_mask", None)
                         if y_mask is None:
@@ -438,7 +438,7 @@ def train_and_evaluate_edge(
     with torch.no_grad():
         for data in test_loader:
             data = data.to(device)
-            with torch.cuda.amp.autocast(enabled=amp_enabled):
+            with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                 out = forward_model(data, training=False)
                 y_raw, y_mask = data.y, getattr(data, "y_mask", None)
                 if y_mask is None:

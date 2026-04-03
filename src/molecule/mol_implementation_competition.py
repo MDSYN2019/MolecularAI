@@ -200,7 +200,8 @@ def build_training_frame() -> pd.DataFrame:
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
-    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation
+    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation 
+
     return combined
 
 
@@ -354,11 +355,9 @@ def main() -> None:
 
     torch.save(model.state_dict(), "model_best.pt")
     logger.info(
-        "Done. Test loss:",
+        "Done. Test loss: %s MAE: %s R2: %s",
         results["test_losses"],
-        "MAE:",
         results["test_mae"],
-        "R2:",
         results["test_r2"],
     )
 
@@ -379,9 +378,10 @@ def main() -> None:
         mask.to(criterion_test.weights.device),
     ).item()
 
+    
+    logger.info("Per-property MAE: %s", per_prop_mae.tolist())
+    logger.info("Contest wMAE: %s", contest_wmae)
 
-    logger.info("Per-property MAE:", per_prop_mae.tolist())
-    logger.info("Contest wMAE:", contest_wmae)
 
     test_df = pd.read_csv(TEST_CSV)
     test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)
