@@ -42,6 +42,7 @@ TEST_CSV = f"{PATH}/test.csv"
 
 SEED = 42
 BATCH_SIZE = 64
+NUM_WORKERS = 4
 HIDDEN = 384
 EPOCHS = 10
 LR = 1e-4
@@ -129,13 +130,24 @@ def make_loaders(
     df_val: pd.DataFrame,
     df_test: pd.DataFrame,
     batch_size: int = BATCH_SIZE,
+    num_workers: int = NUM_WORKERS,
 ):
     """
     Convert the pandas table into train, val and test loaders and shuffle the data before returning
     """
-    train_loader = DataLoader(df_train["graph"].tolist(), batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(df_val["graph"].tolist(), batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(df_test["graph"].tolist(), batch_size=batch_size, shuffle=False)
+    use_cuda = torch.cuda.is_available()
+    loader_kwargs = {
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "pin_memory": use_cuda,
+    }
+    if num_workers > 0:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = 2
+
+    train_loader = DataLoader(df_train["graph"].tolist(), shuffle=True, **loader_kwargs)
+    val_loader = DataLoader(df_val["graph"].tolist(), shuffle=False, **loader_kwargs)
+    test_loader = DataLoader(df_test["graph"].tolist(), shuffle=False, **loader_kwargs)
     return train_loader, val_loader, test_loader
 
 
@@ -232,6 +244,10 @@ def main():
     train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     _ = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
 
     # 
