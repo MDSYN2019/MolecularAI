@@ -58,6 +58,50 @@ intuition from data prep → graph construction → modeling → training/tuning
 5. Tune the model in `mol_hyperparameter_tuning.py`.
 6. Compare with the upgraded GINE workflow.
 
+## Improving training stability and test score (competition checklist)
+
+If your target is better leaderboard/test performance in `mol_implementation_competition.py`,
+use this order of operations:
+
+1. **Fix evaluation quality first (before model changes)**
+   - Use multiple seeds and average the validation metric. A single random split can be noisy.
+   - Keep a strict holdout that is never used for hyperparameter decisions.
+   - Track both overall wMAE and per-property MAE (Tg/FFV/Tc/Density/Rg), then optimize the worst property.
+
+2. **Train longer with a safer schedule**
+   - The current competition script uses a short run (`EPOCHS = 10`), which is often underfit for GINE stacks.
+   - Increase epochs (e.g., 60-150) with early stopping and reduce-on-plateau LR scheduling.
+   - Typical robust ranges to sweep:
+     - LR: `3e-5` to `3e-4`
+     - Weight decay: `1e-6` to `3e-4`
+     - Dropout: `0.1` to `0.4`
+
+3. **Tune capacity against overfitting**
+   - Start from hidden size + depth in `GINELayerUpgraded`, then sweep:
+     - `hidden_channels`: 256 / 384 / 512
+     - `num_layers`: 6 / 8 / 10
+   - If validation stalls early, reduce depth or increase dropout.
+   - If train improves but val degrades, reduce capacity and/or increase regularization.
+
+4. **Improve data signal before architecture changes**
+   - Verify canonicalization + deduplication quality before graph conversion.
+   - Check for label outliers and unit mismatches in supplemental datasets.
+   - Consider lightweight SMILES augmentation (multiple randomizations) and average predictions.
+
+5. **Use stronger validation strategy**
+   - Prefer K-fold or repeated holdout to reduce variance in model selection.
+   - Select checkpoints by validation wMAE, not just final epoch.
+
+6. **Inference tricks that usually help**
+   - Ensemble 3-5 independently seeded models.
+   - Optionally use test-time augmentation (randomized SMILES) and average outputs.
+   - Calibrate per-target bias using validation residuals (small additive correction per property).
+
+7. **What to watch in logs**
+   - `train ↓` and `val flat`: LR too low or under-capacity.
+   - `train ↓` and `val ↑`: overfitting (increase dropout/weight decay, shorten patience).
+   - One property dominates error: rebalance with loss weighting or targeted data cleaning for that property.
+
 ## If you feel lost
 
 Start with step 1 and step 2 only. Once you can explain how a SMILES string becomes
