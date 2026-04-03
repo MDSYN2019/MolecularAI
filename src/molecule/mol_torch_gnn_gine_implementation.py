@@ -1,13 +1,6 @@
-from __future__ import annotations
-
-import pandas as pd
-import torch
-import optuna
-
-from torch_geometric.loader import DataLoader
-
 from mol_functions import mol_to_graph, fix_tg_units
 from mol_torch_gnn_implementation import GINELayerUpgraded, train_and_evaluate_edge
+
 from mol_losses import ContestWMAE
 from mol_multitask_utils import (
     attach_multitask_targets,
@@ -17,22 +10,16 @@ from mol_multitask_utils import (
     split_df,
 )
 
-# ---------- CONFIG ----------
-PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
-NUM_TASKS = len(PROPERTIES)
-PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025/molecule"
-TRAIN_CSV = f"{PATH}/train.csv"
-SEED = 42
+from __future__ import annotations
+import pandas as pd
+import torch
+import optuna
+from torch_geometric.loader import DataLoader
 
-MINMAX_DICT = {
-    "Tg": [-148.0297376, 472.25],
-    "FFV": [0.2269924, 0.77709707],
-    "Tc": [0.0465, 0.524],
-    "Density": [0.748691234, 1.840998909],
-    "Rg": [9.7283551, 34.672905605],
-}
 
-# ---------- UTILS ----------
+def inv_std(z, mu=mu_t, sd=sd_t):
+    return z * sd.to(z.device) + mu.to(z.device)
+
 def set_seed(seed: int = SEED) -> None:
     import numpy as np
     import random
@@ -42,30 +29,6 @@ def set_seed(seed: int = SEED) -> None:
     random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
-# ---------- DATA (built once) ----------
-set_seed()
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-train_df = pd.read_csv(TRAIN_CSV)
-train_df = fix_tg_units(train_df)
-train_df["graph"] = train_df["SMILES"].apply(mol_to_graph)
-
-df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
-scalers = compute_scalers(df_train, PROPERTIES)
-
-df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
-df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
-df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
-
-mu_t = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device)
-sd_t = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32, device=device)
-
-def inv_std(z, mu=mu_t, sd=sd_t):
-    return z * sd.to(z.device) + mu.to(z.device)
-
-ranges_all = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
-
 
 def build_loader(graphs, batch_size: int, shuffle: bool, num_workers: int) -> DataLoader:
     use_cuda = torch.cuda.is_available()
@@ -77,7 +40,6 @@ def build_loader(graphs, batch_size: int, shuffle: bool, num_workers: int) -> Da
         pin_memory=use_cuda,
         persistent_workers=num_workers > 0,
     )
-
 
 def extract_best_val(results: dict, criterion_eval: ContestWMAE, device: torch.device) -> float:
     if "best_val_loss" in results:
@@ -97,11 +59,50 @@ def extract_best_val(results: dict, criterion_eval: ContestWMAE, device: torch.d
             ).item()
         )
 
+    
+# ---------- CONFIG ----------
+PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
+NUM_TASKS = len(PROPERTIES)
+PATH = "/home/sang/Desktop/neurips-open-polymer-prediction-2025/molecule"
+TRAIN_CSV = f"{PATH}/train.csv"
+SEED = 42
+
+MINMAX_DICT = {
+    "Tg": [-148.0297376, 472.25],
+    "FFV": [0.2269924, 0.77709707],
+    "Tc": [0.0465, 0.524],
+    "Density": [0.748691234, 1.840998909],
+    "Rg": [9.7283551, 34.672905605],
+}
+
+# ---------- UTILS ----------
+
+# ---------- DATA (built once) ----------
+set_seed()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+train_df = pd.read_csv(TRAIN_CSV)
+train_df = fix_tg_units(train_df)
+train_df["graph"] = train_df["SMILES"].apply(mol_to_graph) # this may need to be changed
+
+df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED) # split to train, validation and test datasets
+scalers = compute_scalers(df_train, PROPERTIES)
+
+df_train = attach_multitask_targets(df_train, scalers, PROPERTIES) 
+df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
+df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
+
+mu_t = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32, device=device)
+sd_t = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32, device=device)
+
+
+ranges_all = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
+
+
 
 # ---------- OPTUNA OBJECTIVE ----------
 def objective(trial: optuna.Trial) -> float:
     set_seed(SEED + trial.number)  # small jitter per trial
-
     # Search space
     hidden = trial.suggest_categorical("hidden", [128, 256, 512])
     num_layers = trial.suggest_categorical("num_layers", [3, 4, 5])
@@ -159,13 +160,10 @@ def objective(trial: optuna.Trial) -> float:
         patience=patience,
         # if your function accepts lr_schedulers or callbacks, you can add them here
     )
-
     # Get best validation wMAE (robust to different return shapes)
     best_val = extract_best_val(results, criterion_eval, device)
-
     # Optional: report to Optuna for pruning (won't prune unless you use a pruner)
     trial.report(best_val, step=1)
-
     return best_val  # minimize wMAE
 
 if __name__ == "__main__":

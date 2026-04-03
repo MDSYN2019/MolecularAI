@@ -1,5 +1,6 @@
 # Performance debugging
 # rdkit for molecular modelling
+from mol_functions_chem import featurize_molecule_atoms
 
 import logging
 import pandas as pd
@@ -14,23 +15,27 @@ from rdkit.Chem import Descriptors, rdMolDescriptors
 
 from sklearn.preprocessing import StandardScaler
 
-from mol_functions_chem import featurize_molecule_atoms
 
 PROPERTIES = ["Tg", "FFV", "Tc", "Density", "Rg"]
 logging.basicConfig(level=logging.INFO)
 
+# Define type of bond 
 BOND_TYPE_TO_IDX = {
     rdchem.BondType.SINGLE: 0,
     rdchem.BondType.DOUBLE: 1,
     rdchem.BondType.TRIPLE: 2,
     rdchem.BondType.AROMATIC: 3,
 }
+
+# Define type of stereochemistry 
 STEREO_TO_IDX = {
     rdchem.BondStereo.STEREONONE: 0,
     rdchem.BondStereo.STEREOZ:    1,
     rdchem.BondStereo.STEREOE:    2,
     rdchem.BondStereo.STEREOANY:  3,
 }
+
+# define type of bond dir
 BOND_DIR_TO_IDX = {
     rdchem.BondDir.NONE:         0,
     rdchem.BondDir.BEGINWEDGE:   1,
@@ -39,6 +44,7 @@ BOND_DIR_TO_IDX = {
     rdchem.BondDir.ENDUPRIGHT:   4,
 }
 
+# define type of hybridization
 HYB_CHOICES = [
     Chem.rdchem.HybridizationType.SP,
     Chem.rdchem.HybridizationType.SP2,
@@ -46,18 +52,23 @@ HYB_CHOICES = [
     Chem.rdchem.HybridizationType.SP3D,
     Chem.rdchem.HybridizationType.SP3D2,
 ]
+
+# define types of chiral atoms
 CHI_CHOICES = [
     Chem.rdchem.ChiralType.CHI_UNSPECIFIED,
     Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW,
     Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW,
     Chem.rdchem.ChiralType.CHI_OTHER,
 ]
+
+# define the sterochemistry 
 STEREO_CHOICES = [
     Chem.rdchem.BondStereo.STEREONONE,
     Chem.rdchem.BondStereo.STEREOZ,
     Chem.rdchem.BondStereo.STEREOE,
     Chem.rdchem.BondStereo.STEREOANY,
 ]
+
 BOND_DIR_CHOICES = [
     Chem.rdchem.BondDir.NONE,
     Chem.rdchem.BondDir.BEGINWEDGE,
@@ -93,6 +104,7 @@ COV_RAD = {
 }
 
 
+# Basic descriptors we wish to compute for each smiles string
 RD_FEATURES = [
     Descriptors.MolWt, Descriptors.HeavyAtomCount, Descriptors.NumValenceElectrons,
     Descriptors.NumAromaticRings, Descriptors.NumAliphaticRings, Descriptors.FractionCSP3,
@@ -105,9 +117,8 @@ def rdkit_globals(smiles: str) -> np.ndarray:
     m = Chem.MolFromSmiles(smiles)
     if m is None:
         return np.zeros(len(RD_FEATURES), dtype=np.float32)
-    vals = [float(f(m)) for f in RD_FEATURES]
+    vals = [float(f(m)) for f in RD_FEATURES] # implement each feature for the smiles string
     return np.array(vals, dtype=np.float32)
-
 
 def randomize_smiles(s):
     """Generate a randomized (non-canonical) SMILES augmentation when possible."""
@@ -126,8 +137,7 @@ def return_molecular_graph(adjacency, node_labels) -> nx.Graph:
             G.add_edge(i, j)
     return G
 
-
-def graph_descriptors(mol):
+def graph_descriptors(mol) -> torch.Tensor:
     """Graph-level descriptors used as global conditioning features."""
     return torch.tensor([
         Descriptors.MolWt(mol),
@@ -145,6 +155,9 @@ def graph_descriptors(mol):
 
 
 def featurize_atom(atom):
+    """
+    Per atom, get the atomic number, and featurize the hybridization etc
+    """
     Z = atom.GetAtomicNum()
     # categorical one-hots
     hyb = atom.GetHybridization()
@@ -195,12 +208,14 @@ def smiles_to_graph(smiles_mol, elements=["C", "O", "N", "H", "Other"]):
     mol = Chem.AddHs(smiles_mol)
     n_atoms = mol.GetNumAtoms()
 
+    # Create container for the node features
     node_features = np.zeros((n_atoms, len(elements)), dtype=np.float32)
+    
     for atom in mol.GetAtoms():
         idx = atom.GetIdx()
         symbol = atom.GetSymbol()
         node_features[idx, elements.index(symbol) if symbol in elements else -1] = 1.0
-
+    
     adjacency, edge_features, edge_indices = create_adjacency_matrix(n_atoms, mol)
     return node_features, adjacency, edge_features, edge_indices
 
@@ -278,18 +293,152 @@ def get_molecular_properties(mol):
     return property_dictionary
 
 
+def smiles_to_pytorch_graph(smiles):
+    """
+    Pytorch geometric for molecular graphs
+
+    Now that we understand the fundamentals of graph representation for molecules, let's implement this using Pytorch Geometric (PyG),
+    a library specifically designed for graph neural networks
+    """
+    # Get the graph representation
+    node_features, adjacency, edge_features, edge_indices = advanced_smiles_to_graph(
+        smiles
+    )
+
+
+def mol_to_graph(smiles: str) -> Data:
+    """Convert SMILES into a PyG Data object with atom, bond and global features."""
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"Invalid SMILES string: {smiles}")
+
+    x = torch.stack([featurize_atom(a) for a in mol.GetAtoms()], dim=0)  # [N, Dx], float32
+    ei, ea = [], []
+    for bond in mol.GetBonds():
+        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        bf = bond_features(bond)  # [15], float32
+        ei.append((i, j)); ea.append(bf)
+        ei.append((j, i)); ea.append(bf)
+    edge_index = torch.tensor(ei, dtype=torch.long).t().contiguous() if ei else torch.empty((2, 0), dtype=torch.long)
+    edge_attr  = torch.stack(ea, dim=0) if ea else torch.empty((0, 15), dtype=torch.float32)
+
+    g = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, smiles=smiles)
+    g.u = graph_descriptors(mol).view(1, -1)  # [1, U_raw]; remember to scale later
+    return g
+
+def atom_features(atom):
+    """
+    Extract a feature vector for an RDKit atom - per atom node features to be added in 
+
+    Features included:
+        - Atomic number
+        - Chirality tag (encoded as integer)
+        - Degree (number of directly-bonded atoms)
+        - Formal charge
+        - Total number of hydrogens
+        - Number of radical electrons
+        - Hybridization (encoded as integer)
+        - Aromaticity (0 or 1)
+        - Ring membership (0 or 1)
+
+    Args:
+        atom (rdkit.Chem.rdchem.Atom): An RDKit Atom object.
+
+    Returns:
+        torch.Tensor: Feature tensor of shape (9,) with dtype long.
+    """
+    return torch.tensor(
+        [
+            atom.GetAtomicNum(),  # Atomic number
+            int(atom.GetChiralTag()),  # Chirality
+            atom.GetDegree(),  # Degree
+            atom.GetFormalCharge(),  # Formal charge
+            atom.GetTotalNumHs(),  # Number of hydrogens
+            atom.GetNumRadicalElectrons(),  # Radical electrons
+            int(atom.GetHybridization()),  # Hybridization
+            int(atom.GetIsAromatic()),  # Aromaticity
+            int(atom.IsInRing()),  # Ring membership
+        ],
+        dtype=torch.long,
+    )
+
+
+def bond_features(bond):
+    """
+    Depending on the bond type we do detect,
+    one-hot vectorize the vector 
+    """
+    # one-hot bond type (4)
+    bt = [0,0,0,0]
+    t = bond.GetBondType()
+    if   t == Chem.rdchem.BondType.SINGLE:  bt[0]=1
+    elif t == Chem.rdchem.BondType.DOUBLE:  bt[1]=1
+    elif t == Chem.rdchem.BondType.TRIPLE:  bt[2]=1
+    elif t == Chem.rdchem.BondType.AROMATIC:bt[3]=1
+    # stereo (none, Z, E, any) -> 4
+    st = [0,0,0,0]; s = int(bond.GetStereo()) # store in sterotype one-hot vector 
+    if s in (0,1,2,3): st[s]=1 
+    # direction (NONE, WEDGE, DASH, ENDDOWNRIGHT, ENDUPRIGHT) -> 5
+    dir_map = {0:0,1:1,2:2,3:3,4:4} # direction 
+    d = [0,0,0,0,0]; di = dir_map.get(int(bond.GetBondDir()),0); d[di]=1
+    # flags
+    flags = [int(bond.GetIsConjugated()), int(bond.IsInRing())]
+    return torch.tensor(bt + st + d + flags, dtype=torch.float32)  # dim = 4+4+5+2=15
+
+def fix_tg_units(
+    df: pd.DataFrame,
+    tg_col: str = "Tg",
+    flag_col: str = "Tg_was_kelvin",
+    assume_kelvin_if_gt: float = 200.0,
+) -> pd.DataFrame:
+    """
+    Convert Tg from K→°C where needed.
+    Rules:
+      1) If flag_col == 1 -> convert (K to °C).
+      2) Also convert if Tg looks like Kelvin by magnitude (e.g. > 200 K and < 1000 K).
+      3) Leave everything else (including NaNs) untouched.
+    Adds/updates flag_col to 1 where a conversion happened.
+    """
+    out = df.copy()
+
+    if flag_col not in out.columns:
+        out[flag_col] = 0.0
+
+    tg = out[tg_col]
+    # explicit flag
+    mask_flag = out[flag_col].fillna(0).astype(int).eq(1)
+    # heuristic (typical Tg(K) are >200; Celsius Tg rarely > 200)
+    mask_guess = tg.notna() & (tg > assume_kelvin_if_gt) & (tg < 1000)
+
+    mask_convert = mask_flag | mask_guess
+
+    # convert K -> °C
+    out.loc[mask_convert, tg_col] = tg[mask_convert] - 273.15
+    # mark rows we converted
+    out.loc[mask_convert, flag_col] = 1.0
+
+    # optional: assert plausible Tg(°C) range
+    plausible = out[tg_col].isna() | ((out[tg_col] > -200) & (out[tg_col] < 300))
+    if not plausible.all():
+        bad = out.loc[~plausible, [tg_col, flag_col, "id"]]
+        raise ValueError(f"Unplausible Tg after conversion; inspect:\n{bad.head()}")
+
+    return out
+
+
+
 def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
     """
-    We have defined the bond_type_to_idx above as a general definition
-
     The simple representation above use only atom type and bond types, but real-world applications often need
     more sophisticated features.
 
     Convert a SMILES string to graph representation with advanced features.
+
+    This is a developed version of all the feature building functions per node and per bond that we have made above
+    
     """
     if smiles is None:
         raise ValueError("Invalid SMILES string")
-
 
     mol = Chem.MolFromSmiles(smiles)
     mol = Chem.AddHs(mol)
@@ -406,144 +555,8 @@ def advanced_smiles_to_graph(smiles: str, bond_type_to_idx=BOND_TYPE_TO_IDX):
 
     return node_features, adjacency, edge_features, edge_indices
 
-
-
-def smiles_to_pytorch_graph(smiles):
-    """
-    Pytorch geometric for molecular graphs
-
-    Now that we understand the fundamentals of graph representation for molecules, let's implement this using Pytorch Geometric (PyG),
-    a library specifically designed for graph neural networks
-    """
-    # Get the graph representation
-    node_features, adjacency, edge_features, edge_indices = advanced_smiles_to_graph(
-        smiles
-    )
-
-
-def mol_to_graph(smiles: str) -> Data:
-    """Convert SMILES into a PyG Data object with atom, bond and global features."""
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        raise ValueError(f"Invalid SMILES string: {smiles}")
-
-    x = torch.stack([featurize_atom(a) for a in mol.GetAtoms()], dim=0)  # [N, Dx], float32
-    ei, ea = [], []
-    for bond in mol.GetBonds():
-        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-        bf = bond_features(bond)  # [15], float32
-        ei.append((i, j)); ea.append(bf)
-        ei.append((j, i)); ea.append(bf)
-    edge_index = torch.tensor(ei, dtype=torch.long).t().contiguous() if ei else torch.empty((2, 0), dtype=torch.long)
-    edge_attr  = torch.stack(ea, dim=0) if ea else torch.empty((0, 15), dtype=torch.float32)
-
-    g = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, smiles=smiles)
-    g.u = graph_descriptors(mol).view(1, -1)  # [1, U_raw]; remember to scale later
-    return g
-
-
-
-def atom_features(atom):
-    """
-    Extract a feature vector for an RDKit atom.
-
-    Features included:
-        - Atomic number
-        - Chirality tag (encoded as integer)
-        - Degree (number of directly-bonded atoms)
-        - Formal charge
-        - Total number of hydrogens
-        - Number of radical electrons
-        - Hybridization (encoded as integer)
-        - Aromaticity (0 or 1)
-        - Ring membership (0 or 1)
-
-    Args:
-        atom (rdkit.Chem.rdchem.Atom): An RDKit Atom object.
-
-    Returns:
-        torch.Tensor: Feature tensor of shape (9,) with dtype long.
-    """
-    return torch.tensor(
-        [
-            atom.GetAtomicNum(),  # Atomic number
-            int(atom.GetChiralTag()),  # Chirality
-            atom.GetDegree(),  # Degree
-            atom.GetFormalCharge(),  # Formal charge
-            atom.GetTotalNumHs(),  # Number of hydrogens
-            atom.GetNumRadicalElectrons(),  # Radical electrons
-            int(atom.GetHybridization()),  # Hybridization
-            int(atom.GetIsAromatic()),  # Aromaticity
-            int(atom.IsInRing()),  # Ring membership
-        ],
-        dtype=torch.long,
-    )
-
-def bond_features(bond):
-    # one-hot bond type (4)
-    bt = [0,0,0,0]
-    t = bond.GetBondType()
-    if   t == Chem.rdchem.BondType.SINGLE:  bt[0]=1
-    elif t == Chem.rdchem.BondType.DOUBLE:  bt[1]=1
-    elif t == Chem.rdchem.BondType.TRIPLE:  bt[2]=1
-    elif t == Chem.rdchem.BondType.AROMATIC:bt[3]=1
-    # stereo (none, Z, E, any) -> 4
-    st = [0,0,0,0]; s = int(bond.GetStereo())
-    if s in (0,1,2,3): st[s]=1
-    # direction (NONE, WEDGE, DASH, ENDDOWNRIGHT, ENDUPRIGHT) -> 5
-    dir_map = {0:0,1:1,2:2,3:3,4:4}
-    d = [0,0,0,0,0]; di = dir_map.get(int(bond.GetBondDir()),0); d[di]=1
-    # flags
-    flags = [int(bond.GetIsConjugated()), int(bond.IsInRing())]
-    return torch.tensor(bt + st + d + flags, dtype=torch.float32)  # dim = 4+4+5+2=15
-
-
-
-def fix_tg_units(
-    df: pd.DataFrame,
-    tg_col: str = "Tg",
-    flag_col: str = "Tg_was_kelvin",
-    assume_kelvin_if_gt: float = 200.0,
-) -> pd.DataFrame:
-    """
-    Convert Tg from K→°C where needed.
-    Rules:
-      1) If flag_col == 1 -> convert (K to °C).
-      2) Also convert if Tg looks like Kelvin by magnitude (e.g. > 200 K and < 1000 K).
-      3) Leave everything else (including NaNs) untouched.
-    Adds/updates flag_col to 1 where a conversion happened.
-    """
-    out = df.copy()
-
-    if flag_col not in out.columns:
-        out[flag_col] = 0.0
-
-    tg = out[tg_col]
-    # explicit flag
-    mask_flag = out[flag_col].fillna(0).astype(int).eq(1)
-    # heuristic (typical Tg(K) are >200; Celsius Tg rarely > 200)
-    mask_guess = tg.notna() & (tg > assume_kelvin_if_gt) & (tg < 1000)
-
-    mask_convert = mask_flag | mask_guess
-
-    # convert K -> °C
-    out.loc[mask_convert, tg_col] = tg[mask_convert] - 273.15
-    # mark rows we converted
-    out.loc[mask_convert, flag_col] = 1.0
-
-    # optional: assert plausible Tg(°C) range
-    plausible = out[tg_col].isna() | ((out[tg_col] > -200) & (out[tg_col] < 300))
-    if not plausible.all():
-        bad = out.loc[~plausible, [tg_col, flag_col, "id"]]
-        raise ValueError(f"Unplausible Tg after conversion; inspect:\n{bad.head()}")
-
-    return out
-
-
 # Other boilerplate functions to read in the supplementary information
-
 # -------- helpers --------
-
 def canon_polymer_smiles(s: str) -> str | None:
     """Canonicalize while preserving '*' wildcard atoms."""
     if not isinstance(s, str) or not s.strip():
@@ -624,8 +637,6 @@ def resolve_conflicts(group: pd.DataFrame) -> pd.Series:
             out[p] = pd.NA
     # return a Series so GroupBy.apply can stack resu
     return pd.Series(out)
-
-
 
 def normalize_adjacency(A):
     """
