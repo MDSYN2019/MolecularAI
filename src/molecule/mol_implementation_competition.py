@@ -200,7 +200,7 @@ def build_training_frame() -> pd.DataFrame:
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
     combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
-    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation 
+    combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation
 
     return combined
 
@@ -361,36 +361,36 @@ def main() -> None:
         results["test_r2"],
     )
 
-    preds_z = results["test_preds"]
-    targets_z = results["test_targets"]
-    mask = results["test_mask"].float()
-
-    mu_cpu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32)
-    sd_cpu = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32)
-
-    preds_orig = preds_z * sd_cpu + mu_cpu
-    targets_orig = targets_z * sd_cpu + mu_cpu
-    per_prop_mae = ((preds_orig - targets_orig).abs() * mask).sum(0) / mask.sum(0).clamp_min(1.0)
-
-    contest_wmae = criterion_test(
-        preds_z.to(criterion_test.weights.device),
-        targets_z.to(criterion_test.weights.device),
-        mask.to(criterion_test.weights.device),
-    ).item()
-
-    
-    logger.info("Per-property MAE: %s", per_prop_mae.tolist())
-    logger.info("Contest wMAE: %s", contest_wmae)
-
-
-    test_df = pd.read_csv(TEST_CSV)
-    test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)
-
-    pred_mat = predict(model, test_loader_only, device, inv_std)
-    submission = pd.DataFrame(pred_mat, columns=PROPERTIES)
-    submission.insert(0, "id", test_ids)
-    final_output = pd.merge(test_df, submission, on="id")
-    return final_output
+   # preds_z = results["test_preds"]
+   # targets_z = results["test_targets"]
+   # mask = results["test_mask"].float()
+   #
+   # mu_cpu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32)
+   # sd_cpu = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32)
+   #
+   # preds_orig = preds_z * sd_cpu + mu_cpu
+   # targets_orig = targets_z * sd_cpu + mu_cpu
+   # per_prop_mae = ((preds_orig - targets_orig).abs() * mask).sum(0) / mask.sum(0).clamp_min(1.0)
+   #
+   # contest_wmae = criterion_test(
+   #     preds_z.to(criterion_test.weights.device),
+   #     targets_z.to(criterion_test.weights.device),
+   #     mask.to(criterion_test.weights.device),
+   # ).item()
+   #
+   #
+   # logger.info("Per-property MAE: %s", per_prop_mae.tolist())
+   # logger.info("Contest wMAE: %s", contest_wmae)
+   #
+   #
+   # test_df = pd.read_csv(TEST_CSV)
+   # test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)
+   #
+   # pred_mat = predict(model, test_loader_only, device, inv_std)
+   # submission = pd.DataFrame(pred_mat, columns=PROPERTIES)
+   # submission.insert(0, "id", test_ids)
+   # final_output = pd.merge(test_df, submission, on="id")
+   # return final_output
 
 
 if __name__ == "__main__":
