@@ -1,0 +1,50 @@
+name: PyTorch CD
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  package-and-deliver:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine pytest pytest-cov pandas
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-geometric
+
+      - name: Validate PyTorch smoke tests before release
+        env:
+          PYTHONPATH: src
+        run: pytest -q test/test_pytorch_ci.py
+
+      - name: Build package artifacts
+        run: python -m build
+
+      - name: Check package artifacts
+        run: twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytorch-package-dist
+          path: dist/*
+
+      - name: Publish to PyPI (if token configured)
+        if: startsWith(github.ref, 'refs/tags/v') && secrets.PYPI_API_TOKEN != ''
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
