@@ -30,7 +30,6 @@ sample_graph = ml_dataset["train_loader"].dataset[0]
 in_channels = sample_graph.num_node_features
 edge_dim = sample_graph.edge_attr.size(1)
 
-
 # Define objective to accept ml_dataset
 def objective(trial, ml_dataset, edge_dim=edge_dim):
     """

@@ -104,12 +104,21 @@ COV_RAD = {
 }
 
 
-# Basic descriptors we wish to compute for each smiles string
+# Basic descriptors we wish to compute for each smiles string  - global features to be added in 
 RD_FEATURES = [
-    Descriptors.MolWt, Descriptors.HeavyAtomCount, Descriptors.NumValenceElectrons,
-    Descriptors.NumAromaticRings, Descriptors.NumAliphaticRings, Descriptors.FractionCSP3,
-    Descriptors.TPSA, Descriptors.MolMR, Descriptors.NumHAcceptors, Descriptors.NumHDonors,
-    Descriptors.NumSaturatedRings, Descriptors.NumAliphaticCarbocycles, Descriptors.NumAromaticHeterocycles,
+    Descriptors.MolWt, # molecular weight 
+    Descriptors.HeavyAtomCount, # number of non-hydogen atoms 
+    Descriptors.NumValenceElectrons, # total number of valence electrons in the molecule  
+    Descriptors.NumAromaticRings, # number of aromatic rings in the molecule 
+    Descriptors.NumAliphaticRings, # number of aliphatic rings in the molecule 
+    Descriptors.FractionCSP3, # fraction of sp3-hybridized carbons 
+    Descriptors.TPSA, # topological polar surface area
+    Descriptors.MolMR, # molar refractivity 
+    Descriptors.NumHAcceptors, # number of hydogen bond acceptors 
+    Descriptors.NumHDonors, # number of hydrogen bond donors 
+    Descriptors.NumSaturatedRings, # number of saturated rings in the molcule 
+    Descriptors.NumAliphaticCarbocycles, # number of aliphatic carbocycles in the molecule 
+    Descriptors.NumAromaticHeterocycles, # number of aromatic heterocycles in the molecule 
 ]
 
 def rdkit_globals(smiles: str) -> np.ndarray:

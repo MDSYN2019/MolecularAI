@@ -44,7 +44,7 @@ SEED = 42
 BATCH_SIZE = 64
 NUM_WORKERS = 4
 HIDDEN = 384
-EPOCHS = 10
+EPOCHS = 1
 LR = 1e-4
 WEIGHT_DECAY = 1e-4
 
@@ -142,7 +142,7 @@ def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFram
     df["u"] = u_vectors # insert into the pandas table
 
     for idx, graph in df["graph"].items():
-        graph.u = df.at[idx, "u"].unsqueeze(0) #
+        graph.u = df.at[idx, "u"].unsqueeze(0) # attach the global features to the graph object in the dataframe, and unsqueeze to add a batch dimensoion
     return df
 
 def make_loaders(
@@ -261,13 +261,12 @@ def main() -> None:
     df_train, df_val, df_test = split_df(train_df, train=0.8, val=0.1, seed=SEED)
     scalers = compute_scalers(df_train, PROPERTIES)
 
-    # need a better explanation of what this is doing
-    df_train = attach_multitask_targets(df_train, scalers, PROPERTIES)
-    df_val = attach_multitask_targets(df_val, scalers, PROPERTIES)
-    df_test = attach_multitask_targets(df_test, scalers, PROPERTIES)
+    df_train = attach_multitask_targets(df_train, scalers, PROPERTIES) # attach the target values for each property to the graph objects in the dataframe, and also mark which targets are present and which are missing 
+    df_val = attach_multitask_targets(df_val, scalers, PROPERTIES) # attach the target values for each property to the graph objects in the dataframe, and also mark which targets are present and which are missing
+    df_test = attach_multitask_targets(df_test, scalers, PROPERTIES) # ditto
 
-    df_train = attach_u_features(df_train, u_scaler)
-    df_val = attach_u_features(df_val, u_scaler)
+    df_train = attach_u_features(df_train, u_scaler) # attach the global features to the graph objects in the dataframe 
+    df_val = attach_u_features(df_val, u_scaler) # attach the global features to the graph objects in the dataframe 
     df_test = attach_u_features(df_test, u_scaler)
 
     train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
@@ -360,37 +359,6 @@ def main() -> None:
         results["test_mae"],
         results["test_r2"],
     )
-
-   # preds_z = results["test_preds"]
-   # targets_z = results["test_targets"]
-   # mask = results["test_mask"].float()
-   #
-   # mu_cpu = torch.tensor([scalers[p][0] for p in PROPERTIES], dtype=torch.float32)
-   # sd_cpu = torch.tensor([scalers[p][1] for p in PROPERTIES], dtype=torch.float32)
-   #
-   # preds_orig = preds_z * sd_cpu + mu_cpu
-   # targets_orig = targets_z * sd_cpu + mu_cpu
-   # per_prop_mae = ((preds_orig - targets_orig).abs() * mask).sum(0) / mask.sum(0).clamp_min(1.0)
-   #
-   # contest_wmae = criterion_test(
-   #     preds_z.to(criterion_test.weights.device),
-   #     targets_z.to(criterion_test.weights.device),
-   #     mask.to(criterion_test.weights.device),
-   # ).item()
-   #
-   #
-   # logger.info("Per-property MAE: %s", per_prop_mae.tolist())
-   # logger.info("Contest wMAE: %s", contest_wmae)
-   #
-   #
-   # test_df = pd.read_csv(TEST_CSV)
-   # test_loader_only, test_ids = build_test_graph_loader(test_df, u_scaler)
-   #
-   # pred_mat = predict(model, test_loader_only, device, inv_std)
-   # submission = pd.DataFrame(pred_mat, columns=PROPERTIES)
-   # submission.insert(0, "id", test_ids)
-   # final_output = pd.merge(test_df, submission, on="id")
-   # return final_output
 
 
 if __name__ == "__main__":

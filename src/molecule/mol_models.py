@@ -211,11 +211,11 @@ class GINELayerUpgraded(nn.Module):
 
     def __init__(
         self,
-        in_channels,
-        edge_dim,
-        out_channels,
-        hidden_channels=128,
-        num_layers=4,
+        in_channels, # node feature dimension 
+        edge_dim, # edge feature dimension 
+        out_channels, # output dimension 
+        hidden_channels=128, # hidden dimension for GINE layers and MLP
+        num_layers=4, # number of GINE layers
         dropout=0.4,
         input_feature_dropout=0.1,
         edge_feature_dropout=0.05,
@@ -240,7 +240,7 @@ class GINELayerUpgraded(nn.Module):
         # Optional global features projection (kept as additive to keep dims simple)
         self.u_proj = nn.Linear(self.global_feat_dim, hidden_channels) if self.global_feat_dim > 0 else None
 
-        # ---- (A) Shared edge encoder ----
+        # ---- (A) Shared edge encoder ----  encoding the edge features into the same hidden dimensions as the node features
         self.edge_encoder = nn.Sequential(
             nn.Linear(edge_dim, hidden_channels),
             nn.SiLU(),
@@ -248,8 +248,8 @@ class GINELayerUpgraded(nn.Module):
         )
 
         # ---- (B) GINEConv stack with train_eps=True ----
-        self.convs = nn.ModuleList()
-        self.norms = nn.ModuleList()
+        self.convs = nn.ModuleList() # list to hold the GINEConv layers 
+        self.norms = nn.ModuleList() # list to hold the normalization layers 
 
         def node_mlp(in_dim, out_dim):
             return nn.Sequential(
@@ -259,28 +259,28 @@ class GINELayerUpgraded(nn.Module):
             )
 
         # First layer: in -> hidden
-        self.convs.append(
+        self.convs.append( # append the first GINEConv layer to the convs list 
             GINEConv(
                 node_mlp(in_channels, hidden_channels),
-                edge_dim=hidden_channels,
+                edge_dim=hidden_channels, # edge_dim is the dimension of the edge features after encoding 
                 train_eps=True,
             )
         )
-        self.norms.append(self._make_norm(norm, hidden_channels))
+        self.norms.append(self._make_norm(norm, hidden_channels)) # append the normalization layer for the first GINEConv layer to the norms list
 
         # Hidden layers: hidden -> hidden
-        for _ in range(num_layers - 1):
+        for _ in range(num_layers - 1):  # append the subsequent GINEConv layers to the convs list 
             self.convs.append(
                 GINEConv(
                     node_mlp(hidden_channels, hidden_channels),
                     edge_dim=hidden_channels,
-                    train_eps=True,
+                    train_eps=True, # adaptive epsilon for better expressiveness and stability 
                 )
             )
-            self.norms.append(self._make_norm(norm, hidden_channels))
+            self.norms.append(self._make_norm(norm, hidden_channels))  # append the normalization layer for each subsequent GINEConv layer to the norms list
 
         # ---- (C) Optional GRU cell ----
-        if use_gru:
+        if use_gru: 
             self.gru = nn.GRU(hidden_channels, hidden_channels)
 
         # ---- (D) Readout ----
@@ -314,6 +314,9 @@ class GINELayerUpgraded(nn.Module):
 
     @staticmethod
     def _make_norm(norm, dim):
+        """
+        Helper to create the appropriate normalization layer based on the specified type                
+        """        
         if norm == "batch":
             return nn.BatchNorm1d(dim)
         elif norm == "layer":
@@ -351,17 +354,26 @@ class GINELayerUpgraded(nn.Module):
         h_prev = None
 
         # Backbone
+
+        """
+        GINEConv layer 1 -> Normalization layer -> SiLU
+
+        GINEConv layer 2 -> Normalization layer -> SiLU
+
+        GINEConv layer 3 -> Normalization layer - > SiLU
+        """
         for conv, norm in zip(self.convs, self.norms):
             h_in = x
-            x = conv(x, edge_index, enc_edge)     # [N, H]
-            x = norm(x)
+            x = conv(x, edge_index, enc_edge)     # [N, H] - GINE Conv with edge features 
+            x = norm(x)  # Normalize the layer
             x = F.silu(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
-            if self.use_gru:
+            if self.use_gru: 
                 if h_prev is None:
                     h_prev = x.new_zeros(1, x.size(0), self.hidden_channels)
                 x, h_prev = self.gru(x.unsqueeze(0), h_prev)
                 x = x.squeeze(0)
+                
             if self.use_residual and h_in.shape == x.shape:
                 x = x + h_in
 
