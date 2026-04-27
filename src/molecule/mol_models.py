@@ -317,19 +317,19 @@ class GINELayerUpgraded(nn.Module):
         """
         Helper to create the appropriate normalization layer based on the specified type                
         """        
-        if norm == "batch":
-            return nn.BatchNorm1d(dim)
+        if norm == "batch": 
+            return nn.BatchNorm1d(dim) # batch normalization normalizes across the batch dimension, which can help stabilize training and improve convergence 
         elif norm == "layer":
-            return nn.LayerNorm(dim)
+            return nn.LayerNorm(dim) # layer normalization normalizes across the feature dimension for each individual sample, which can be beneficial for graph data 
         else:
             return nn.Identity()
 
     def _pool_basic(self, x, batch):
         if self.pooling == "mean":
-            return global_mean_pool(x, batch)
+            return global_mean_pool(x, batch) # this computes the average of node features foe each graph in the batch, resulting in a graph-level representation of dimension
         elif self.pooling == "sum":
-            return global_add_pool(x, batch)
-        elif self.pooling == "max":
+            return global_add_pool(x, batch) # this computes the sum of node features for each graph in the batch, resulting in a graph-level representation of dimension
+        elif self.pooling == "max": # this computes the maximum of node features for each graph in the batch, resulting in a graph-level representation of dimension
             return global_max_pool(x, batch)
         else:
             raise RuntimeError("Invalid basic pooling type")
@@ -337,12 +337,12 @@ class GINELayerUpgraded(nn.Module):
     def _pool_meanmax(self, x, batch):
         h_mean = global_mean_pool(x, batch)
         h_max  = global_max_pool(x, batch)
-        return torch.cat([h_mean, h_max], dim=-1)  # [B, 2H]
+        return torch.cat([h_mean, h_max], dim=-1)  # [B, 2H]  # this concatenates the mean and max pooled representations along the feature dimension, resulting in a graphlevel represenation of dimension 2H 
 
     def forward(self, x, edge_index, edge_attr, batch, u=None):
         # Input feature dropout
         if self.input_feature_dropout and self.training:
-            x = F.dropout(x, p=self.input_feature_dropout, training=True)
+            x = F.dropout(x, p=self.input_feature_dropout, training=True) 
 
         # Edge feature dropout (pre-encode)
         if self.edge_feature_dropout and self.training:

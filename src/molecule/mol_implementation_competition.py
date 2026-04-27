@@ -199,7 +199,7 @@ def build_training_frame() -> pd.DataFrame:
 
     agg = {col: "median" for col in NUMERIC_COLS}
     combined = combined.groupby("SMILES", as_index=False, sort=False).agg(agg)
-    combined["SMILES"] = combined["SMILES"].apply(randomize_smiles)
+    combined["SMILES"] = combined["SMILES"].apply(randomize_smiles) # randomize the smiles  to add some data augmentation
     combined["graph"] = combined["SMILES"].apply(advanced_smiles_to_pyg_data) # create the graph column representation
 
     return combined
