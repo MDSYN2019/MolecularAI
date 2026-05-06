@@ -279,7 +279,6 @@ def main() -> None:
         torch.backends.cudnn.allow_tf32 = True
     _ = ranges_from_minmax_dict(MINMAX_DICT, PROPERTIES, device)
 
-    #
     ranges_train = ranges_from_frame(df_train, PROPERTIES, device)
     ranges_val = ranges_from_frame(df_val, PROPERTIES, device)
     ranges_test = ranges_from_frame(df_test, PROPERTIES, device)
@@ -292,8 +291,8 @@ def main() -> None:
     def inv_std(z: torch.Tensor) -> torch.Tensor:
         return z * sd.to(z.device) + mu.to(z.device)
 
-    criterion_train = ContestWMAE(ranges_train, n_train, inverse_transform=inv_std).to(device)
-    criterion_eval = ContestWMAE(ranges_val, n_train, inverse_transform=inv_std).to(device)
+    criterion_train = ContestWMAE(ranges_train, n_train, inverse_transform=inv_std).to(device) # the loss function for training 
+    criterion_eval = ContestWMAE(ranges_val, n_train, inverse_transform=inv_std).to(device) # the loss function for evaluation during 
     criterion_test = ContestWMAE(ranges_test, n_train, inverse_transform=inv_std).to(device)
 
     sample = next(iter(train_loader))

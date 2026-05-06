@@ -119,24 +119,29 @@ def make_loaders(
 #ds_single = load_dataset("openadmet/pxr-challenge-train-test", "single_concentration")
 #train_single = ds_single["train"]
 
-SEED = 42
 
-train         = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv")
-test          = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TEST_BLINDED.csv")
-train_counter  = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_counter-assay_TRAIN.csv")
-test_structure = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_structure_TEST_BLINDED.csv")
-train_single   = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_single_concentration_TRAIN.csv")
+def main() -> None:
 
-train['graph'] = train['SMILES'].apply(advanced_smiles_to_pyg_data) # convert the SMILES strings to PyG Data objects and store them in a new column 'graph'
-u_train = np.stack([rdkit_globals(s) for s in train["SMILES"]], axis=0) # glo
-u_scaler = StandardScaler().fit(u_train) # scale the global feature for each molecule
-
-df_train, df_val, df_test = split_df(train, train=0.8, val=0.1, seed=SEED) # split the data into train, validation and test sets 
-     
-# attach 
-df_train = attach_u_features(df_train, u_scaler) # attach the global features to the graph objects in the dataframe 
-df_val = attach_u_features(df_val, u_scaler) # attach the global features to the graph objects in the dataframe 
-df_test = attach_u_features(df_test, u_scaler)
     
-train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
+    SEED = 42
 
+    train         = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv")
+    test          = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TEST_BLINDED.csv")
+    train_counter  = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_counter-assay_TRAIN.csv")
+    test_structure = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_structure_TEST_BLINDED.csv")
+    train_single   = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_single_concentration_TRAIN.csv")
+
+    train['graph'] = train['SMILES'].apply(advanced_smiles_to_pyg_data) # convert the SMILES strings to PyG Data objects and store them in a new column 'graph'
+    u_train = np.stack([rdkit_globals(s) for s in train["SMILES"]], axis=0) # glo
+    u_scaler = StandardScaler().fit(u_train) # scale the global feature for each molecule
+
+    df_train, df_val, df_test = split_df(train, train=0.8, val=0.1, seed=SEED) # split the data into train, validation and test sets 
+     
+    # attach 
+    df_train = attach_u_features(df_train, u_scaler) # attach the global features to the graph objects in the dataframe 
+    df_val = attach_u_features(df_val, u_scaler) # attach the global features to the graph objects in the dataframe 
+    df_test = attach_u_features(df_test, u_scaler)
+    
+    train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
+
+    
