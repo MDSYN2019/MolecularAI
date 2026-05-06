@@ -156,4 +156,52 @@ df_test = attach_targets(df_test)
 
 train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+sample_graph = df_train["graph"].iloc[0]
+
+model = GINELayerUpgraded(
+    in_channels=sample_graph.x.shape[1],
+    edge_dim=sample_graph.edge_attr.shape[1],
+    out_channels=1,
+    hidden_channels=256,
+    num_layers=6,
+    dropout=0.2,
+    input_feature_dropout=0.1,
+    edge_feature_dropout=0.05,
+    pooling="attn",
+    use_gru=False,
+    use_residual=True,
+    norm="batch",
+    global_feat_dim=df_train["u"].iloc[0].shape[0],
+).to(device)
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+
+criterion_train = ContestWMAE()
+criterion_eval = ContestWMAE()
+criterion_test = ContestWMAE()
+
+results = train_and_evaluate_edge(
+    model=model,
+    optimizer=optimizer,
+    criterion_train=criterion_train,
+    criterion_eval=criterion_eval,
+    criterion_test=criterion_test,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    test_loader=test_loader,
+    epochs=120,
+    early_stopping=True,
+    device=device,
+    eval_every=5,
+    use_amp=True,
+)
+
+logging.info(
+    "Finished GINE training | test contest wMAE: %.5f | test MAE: %.5f | test R2: %.5f",
+    results["test_losses"],
+    results["test_mae"],
+    results["test_r2"],
+)
+
     
