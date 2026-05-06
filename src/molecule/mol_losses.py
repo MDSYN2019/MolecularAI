@@ -49,3 +49,25 @@ class ContestWMAE(nn.Module):
         abs_err = (pred - target).abs() * mask
         per_sample = (abs_err * self.weights).sum(dim=1)
         return per_sample.mean()
+
+
+class StandardMAE(nn.Module):
+    """
+    Standard masked MAE for multitask regression.
+
+    Expects tensors shaped [batch, tasks] and a mask with the same shape
+    where labeled entries are 1 and missing entries are 0.
+    """
+
+    def __init__(self, inverse_transform=None) -> None:
+        super().__init__()
+        self.inverse_transform = inverse_transform
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        if self.inverse_transform is not None:
+            pred = self.inverse_transform(pred)
+            target = self.inverse_transform(target)
+
+        m = mask.float()
+        denom = m.sum().clamp_min(1.0)
+        return ((pred - target).abs() * m).sum() / denom
