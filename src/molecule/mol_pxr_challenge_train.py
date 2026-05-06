@@ -6,6 +6,7 @@ from mol_functions import rdkit_globals, randomize_smiles, advanced_smiles_to_gr
 import numpy as np
 import pandas as pd
 import torch
+from torch import nn
 import logging
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.data import Data
@@ -177,9 +178,9 @@ model = GINELayerUpgraded(
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
 
-criterion_train = ContestWMAE()
-criterion_eval = ContestWMAE()
-criterion_test = ContestWMAE()
+criterion_train = nn.L1Loss()#ContestWMAE()
+criterion_eval = nn.L1Loss()#ContestWMAE()
+criterion_test = nn.L1Loss()#ContestWMAE()
 
 results = train_and_evaluate_edge(
     model=model,
