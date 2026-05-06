@@ -54,7 +54,7 @@ def objective(trial, ml_dataset, edge_dim=edge_dim):
     results = train_and_evaluate_edge(
         model,
         optimizer,
-        torch.nn.MSELoss(),
+        torch.nn.L1Loss(),
         ml_dataset["train_loader"],
         ml_dataset["val_loader"],
         ml_dataset["test_loader"],

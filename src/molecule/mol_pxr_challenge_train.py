@@ -22,7 +22,7 @@ from mol_functions import (
     randomize_smiles,
     advanced_smiles_to_graph,
 )
-from mol_losses import ContestWMAE
+from mol_losses import ContestWMAE, StandardMAE
 from mol_multitask_utils import (
     attach_multitask_targets,
     compute_scalers,
@@ -178,9 +178,9 @@ model = GINELayerUpgraded(
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
 
-criterion_train = nn.L1Loss()#ContestWMAE()
-criterion_eval = nn.L1Loss()#ContestWMAE()
-criterion_test = nn.L1Loss()#ContestWMAE()
+criterion_train = StandardMAE()
+criterion_eval = StandardMAE()
+criterion_test = StandardMAE()
 
 results = train_and_evaluate_edge(
     model=model,

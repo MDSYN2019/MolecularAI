@@ -237,7 +237,7 @@ def compare_pooling_methods(dataset, train_loader, val_loader, test_loader):
     lr = 0.001
     weight_decay = 5e-4
     epochs = 50
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
     # Initialize models with different pooling methods
     models = {
         "Mean Pooling": GCNLayer(in_channels, hidden_channels, out_channels),
