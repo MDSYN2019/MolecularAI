@@ -104,7 +104,7 @@ if __name__ == "__main__":
         pruner=pruner,
         study_name="pxr_gine_tuning",
     )
-    study.optimize(bound_objective, n_trials=40, gc_after_trial=True)
+    study.optimize(objective, n_trials=40, gc_after_trial=True)
 
     print("Best value:", study.best_value)
     print("Best params:", study.best_params)
