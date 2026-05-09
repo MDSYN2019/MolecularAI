@@ -5,6 +5,7 @@ import torch
 
 from mol_multitask_utils import split_df
 from mol_pxr_challenge_train import (
+
     attach_targets,
     advanced_smiles_to_pyg_data,
     attach_u_features,
@@ -93,6 +94,7 @@ def objective(trial: optuna.Trial) -> float:
 
 
 if __name__ == "__main__":
+
     sampler = optuna.samplers.TPESampler(seed=SEED)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=8, n_warmup_steps=3)
 
@@ -102,7 +104,7 @@ if __name__ == "__main__":
         pruner=pruner,
         study_name="pxr_gine_tuning",
     )
-    study.optimize(objective, n_trials=40, gc_after_trial=True)
+    study.optimize(bound_objective, n_trials=40, gc_after_trial=True)
 
     print("Best value:", study.best_value)
     print("Best params:", study.best_params)
