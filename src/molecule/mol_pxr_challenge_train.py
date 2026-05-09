@@ -91,12 +91,12 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
     input_feature_dropout = trial.suggest_float("input_feature_dropout", 0.0, 0.2) # suggest a dropout rate for the input node features, between 0 and 0,2 
     edge_feature_dropout = trial.suggest_float("edge_feature_dropout", 0.0, 0.15)  # suggest a dropout rate for the input edge features, between 0 and 0.15 
     hidden_dim = trial.suggest_categorical("hidden_dim", [128, 192, 256, 384]) # suggest a hidden dimension for the GINELayerUpgraded, from the options 128, 256, and 512
-    num_layers = trial.suggest_int("num_layers", [4, 6, 8]) # suggest a number of layers for the GINELayerUpgraded, between 3 and 10 
-    dropout = trial.suggest_float("dropout", [0.1, 0.2, 0.3]) # suggest a dropout rate for the GINELayerUpGraded between 0 and 0.5
+    num_layers = trial.suggest_categorical("num_layers", [4, 6, 8]) # suggest a number of layers for the GINELayerUpgraded, between 3 and 10 
+    dropout = trial.suggest_categorical("dropout", [0.1, 0.2, 0.3]) # suggest a dropout rate for the GINELayerUpGraded between 0 and 0.5
 
     
-    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True) # suggest a learning rate for the AdawmW optimizer, between 1e-4 and 1e-2 on a log scale
-    wd = trial.suggest_float("weight_decay",[1e-5, 1e-4, 3e-4]) # suggest a weight decay for the AdamW optmizer, from options 1e-5, 1e-4 and 3e-4
+    lr = trial.suggest_float("lr", 1e-4, 5e-4, log=True) # suggest a learning rate for the AdawmW optimizer, between 1e-4 and 1e-2 on a log scale
+    wd = trial.suggest_categorical("weight_decay",[1e-5, 1e-4, 3e-4]) # suggest a weight decay for the AdamW optmizer, from options 1e-5, 1e-4 and 3e-4
 
     scheduler_name = trial.suggest_categorical("scheduler", ["cosine", "onecycle"])# suggest a learning rate scheduler, from options "cosine" and "onecycle"
 
@@ -276,16 +276,17 @@ global_feat_dim = df_train["u"].iloc[0].shape[0]
 #    results["test_r2"],
 #)
 #
-objective_fn = partial(
-    objective,
-    train_loader=train_loader,
-    val_loader=val_loader,
-    test_loader=test_loader,
-    sample_graph=sample_graph,
-    global_feat_dim=global_feat_dim,
-    device=device,
-)
-study = optuna.create_study(direction="minimize")  # or "maximize"
-study.optimize(objective_fn, n_trials=30)
-print("Best value:", study.best_value)
-print("Best params:", study.best_params)
+if __name__ == "__main__":
+    objective_fn = partial(
+        objective,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        sample_graph=sample_graph,
+        global_feat_dim=global_feat_dim,
+        device=device,
+    )
+    study = optuna.create_study(direction="minimize")  # or "maximize"
+    study.optimize(objective_fn, n_trials=30)
+    print("Best value:", study.best_value)
+    print("Best params:", study.best_params)
