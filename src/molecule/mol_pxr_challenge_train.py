@@ -1,37 +1,30 @@
-import pandas as pd
-import numpy as np
-from datasets import load_dataset
-from mol_functions import rdkit_globals, randomize_smiles, advanced_smiles_to_graph
+from mol_functions import (
+    rdkit_globals,
+    advanced_smiles_to_graph,
+)
+from mol_multitask_utils import (
+    split_df,
+)
+from mol_losses import StandardMAE
+from mol_torch_gnn_implementation import  train_and_evaluate_edge
+from mol_models import GINELayerUpgraded
+from functools import partial
 
-import numpy as np
+import optuna
 import pandas as pd
+import numpy as np
+
 import torch
 from torch import nn
-import logging
 from sklearn.preprocessing import StandardScaler
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from mol_functions import (
-    canon_polymer_smiles,
-    load_ffv_dataset,
-    load_official,
-    load_tc_dataset,
-    load_tg_dataset,
-    rdkit_globals,
-    randomize_smiles,
-    advanced_smiles_to_graph,
-)
-from mol_losses import ContestWMAE, StandardMAE
-from mol_multitask_utils import (
-    attach_multitask_targets,
-    compute_scalers,
-    counts_from_loader,
-    ranges_from_minmax_dict,
-    split_df,
-)
-from mol_torch_gnn_implementation import  train_and_evaluate_edge
-from mol_models import GINELayerUpgraded
+"""
+
+OpenADMET Blind Challenge: PXR Induction Prediction — Developed graph-based molecular property prediction workflows using RDKit-derived descriptors, PyTorch Geometric molecular graphs, and assay-derived pEC50/Emax labels for a blinded ADMET benchmark task.
+"""
+
 
 BATCH_SIZE = 64
 NUM_WORKERS = 4
@@ -86,6 +79,64 @@ def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFram
     for idx, graph in df["graph"].items():
         graph.u = df.at[idx, "u"].unsqueeze(0) # attach the global features to the graph object in the dataframe, and unsqueeze to add a batch dimensoion
     return df
+
+
+def objective(trial, sample_graph, train_loader, val_loader, test_loader, global_feat_dim: int, device: torch.device):
+    """
+    Objective function for Optuna hyperparameter optimization. This function will be called by optuna for each trial, and it should return a scalar value that represents the performance of the model with the given parameters. The goals of Optuna is to minimize this value.    
+    """
+    
+    input_feature_dropout = trial.suggest_float("input_feature_dropout", 0.0, 0.2) # suggest a dropout rate for the input node features, between 0 and 0,2 
+    edge_feature_dropout = trial.suggest_float("edge_feature_dropout", 0.0, 0.15)  # suggest a dropout rate for the input edge features, between 0 and 0.15 
+    hidden_dim = trial.suggest_categorical("hidden_dim", [128, 256, 512]) # suggest a hidden dimension for the GINELayerUpgraded, from the options 128, 256, and 512
+    num_layers = trial.suggest_int("num_layers", 3, 10) # suggest a number of layers for the GINELayerUpgraded, between 3 and 10 
+    dropout = trial.suggest_float("dropout", 0.0, 0.5) # suggest a dropout rate for the GINELayerUpGraded between 0 and 0.5
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+    wd = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    
+    model = GINELayerUpgraded(
+        in_channels=sample_graph.x.shape[1],
+        edge_dim=sample_graph.edge_attr.shape[1],
+        out_channels=1,
+        hidden_channels=hidden_dim, # use the hyperparameter for hidden dimensions
+        num_layers=num_layers, 
+        dropout=dropout,
+        input_feature_dropout=input_feature_dropout,
+        edge_feature_dropout=edge_feature_dropout,
+        pooling="attn",
+        use_gru=False,
+        use_residual=True,
+        norm="batch",
+        global_feat_dim=global_feat_dim,
+    ).to(device)
+
+    
+    criterion_train = StandardMAE()
+    criterion_eval = StandardMAE()
+    criterion_test = StandardMAE()
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+    
+    results = train_and_evaluate_edge(
+        model=model,
+        optimizer=optimizer,
+        criterion_train=criterion_train,
+        criterion_eval=criterion_eval,
+        criterion_test=criterion_test,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        test_loader=test_loader,
+        epochs=120,
+        early_stopping=True,
+        device=device,
+        eval_every=5,
+        use_amp=True,
+    )
+    
+    # return validation loss or -R² depending on your goal
+    return min(results["val_losses"])
+
+
 
 
 def make_loaders(
@@ -159,50 +210,63 @@ train_loader, val_loader, test_loader = make_loaders(df_train, df_val, df_test)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 sample_graph = df_train["graph"].iloc[0]
+global_feat_dim = df_train["u"].iloc[0].shape[0]
 
-model = GINELayerUpgraded(
-    in_channels=sample_graph.x.shape[1],
-    edge_dim=sample_graph.edge_attr.shape[1],
-    out_channels=1,
-    hidden_channels=256,
-    num_layers=6,
-    dropout=0.2,
-    input_feature_dropout=0.1,
-    edge_feature_dropout=0.05,
-    pooling="attn",
-    use_gru=False,
-    use_residual=True,
-    norm="batch",
-    global_feat_dim=df_train["u"].iloc[0].shape[0],
-).to(device)
-
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
-
-criterion_train = StandardMAE()
-criterion_eval = StandardMAE()
-criterion_test = StandardMAE()
-
-results = train_and_evaluate_edge(
-    model=model,
-    optimizer=optimizer,
-    criterion_train=criterion_train,
-    criterion_eval=criterion_eval,
-    criterion_test=criterion_test,
+#model = GINELayerUpgraded(
+#    in_channels=sample_graph.x.shape[1],
+#    edge_dim=sample_graph.edge_attr.shape[1],
+#    out_channels=1,
+#    hidden_channels=256,
+#    num_layers=6,
+#    dropout=0.2,
+#    input_feature_dropout=0.1,
+#    edge_feature_dropout=0.05,
+#    pooling="attn",
+#    use_gru=False,
+#    use_residual=True,
+#    norm="batch",
+#    global_feat_dim=df_train["u"].iloc[0].shape[0],
+#).to(device)
+#
+#optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+#
+#criterion_train = StandardMAE()
+#criterion_eval = StandardMAE()
+#criterion_test = StandardMAE()
+#
+#results = train_and_evaluate_edge(
+#    model=model,
+#    optimizer=optimizer,
+#    criterion_train=criterion_train,
+#    criterion_eval=criterion_eval,
+#    criterion_test=criterion_test,
+#    train_loader=train_loader,
+#    val_loader=val_loader,
+#    test_loader=test_loader,
+#    epochs=120,
+#    early_stopping=True,
+#    device=device,
+#    eval_every=5,
+#    use_amp=True,
+#)
+#
+#logging.info(
+#    "Finished GINE training | test contest wMAE: %.5f | test MAE: %.5f | test R2: %.5f",
+#    results["test_losses"],
+#    results["test_mae"],
+#    results["test_r2"],
+#)
+#
+objective_fn = partial(
+    objective,
     train_loader=train_loader,
     val_loader=val_loader,
     test_loader=test_loader,
-    epochs=120,
-    early_stopping=True,
+    sample_graph=sample_graph,
+    global_feat_dim=global_feat_dim,
     device=device,
-    eval_every=5,
-    use_amp=True,
 )
-
-logging.info(
-    "Finished GINE training | test contest wMAE: %.5f | test MAE: %.5f | test R2: %.5f",
-    results["test_losses"],
-    results["test_mae"],
-    results["test_r2"],
-)
-
-    
+study = optuna.create_study(direction="minimize")  # or "maximize"
+study.optimize(objective_fn, n_trials=30)
+print("Best value:", study.best_value)
+print("Best params:", study.best_params)

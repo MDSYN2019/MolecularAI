@@ -1,6 +1,7 @@
 # Performance debugging
 # rdkit for molecular modelling
 from mol_functions_chem import featurize_molecule_atoms
+import optuna
 
 import logging
 import pandas as pd
