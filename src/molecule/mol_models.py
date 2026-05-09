@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 from mol_functions import (
     advanced_smiles_to_graph,
     mol_to_graph,
+    randomize_smiles
 )
 
 

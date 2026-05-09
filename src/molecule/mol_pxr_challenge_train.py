@@ -1,6 +1,7 @@
 from mol_functions import (
     rdkit_globals,
     advanced_smiles_to_graph,
+    randomize_smiles,
 )
 from mol_multitask_utils import (
     split_df,
@@ -20,8 +21,9 @@ from sklearn.preprocessing import StandardScaler
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-"""
+from torch.optim.lr_scheduler import ReduceLROnPlateau, OneCycleLR, CosineAnnealingLR
 
+"""
 OpenADMET Blind Challenge: PXR Induction Prediction — Developed graph-based molecular property prediction workflows using RDKit-derived descriptors, PyTorch Geometric molecular graphs, and assay-derived pEC50/Emax labels for a blinded ADMET benchmark task.
 """
 
@@ -88,11 +90,16 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
     
     input_feature_dropout = trial.suggest_float("input_feature_dropout", 0.0, 0.2) # suggest a dropout rate for the input node features, between 0 and 0,2 
     edge_feature_dropout = trial.suggest_float("edge_feature_dropout", 0.0, 0.15)  # suggest a dropout rate for the input edge features, between 0 and 0.15 
-    hidden_dim = trial.suggest_categorical("hidden_dim", [128, 256, 512]) # suggest a hidden dimension for the GINELayerUpgraded, from the options 128, 256, and 512
-    num_layers = trial.suggest_int("num_layers", 3, 10) # suggest a number of layers for the GINELayerUpgraded, between 3 and 10 
-    dropout = trial.suggest_float("dropout", 0.0, 0.5) # suggest a dropout rate for the GINELayerUpGraded between 0 and 0.5
-    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
-    wd = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    hidden_dim = trial.suggest_categorical("hidden_dim", [128, 192, 256, 384]) # suggest a hidden dimension for the GINELayerUpgraded, from the options 128, 256, and 512
+    num_layers = trial.suggest_int("num_layers", [4, 6, 8]) # suggest a number of layers for the GINELayerUpgraded, between 3 and 10 
+    dropout = trial.suggest_float("dropout", [0.1, 0.2, 0.3]) # suggest a dropout rate for the GINELayerUpGraded between 0 and 0.5
+
+    
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True) # suggest a learning rate for the AdawmW optimizer, between 1e-4 and 1e-2 on a log scale
+    wd = trial.suggest_float("weight_decay",[1e-5, 1e-4, 3e-4]) # suggest a weight decay for the AdamW optmizer, from options 1e-5, 1e-4 and 3e-4
+
+    scheduler_name = trial.suggest_categorical("scheduler", ["cosine", "onecycle"])# suggest a learning rate scheduler, from options "cosine" and "onecycle"
+
     
     model = GINELayerUpgraded(
         in_channels=sample_graph.x.shape[1],
@@ -104,19 +111,30 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
         input_feature_dropout=input_feature_dropout,
         edge_feature_dropout=edge_feature_dropout,
         pooling="attn",
-        use_gru=False,
+        use_gru=True,
         use_residual=True,
         norm="batch",
         global_feat_dim=global_feat_dim,
     ).to(device)
 
-    
+
+    # 3) optimizer + scheduler
+
+    epochs = 80
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+
+    if scheduler_name == "cosine":
+        # cosine annealing
+        scheduler = CosineAnnealingLR(optimizer, T_max = epochs, eta_min = 1e-6)
+
+    else:
+        scheduler = CosineAnnealingLR(optimizer, T_max = epochs, eta_min = 1e-6)
+
+        
     criterion_train = StandardMAE()
     criterion_eval = StandardMAE()
     criterion_test = StandardMAE()
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
-    
+                                  
     results = train_and_evaluate_edge(
         model=model,
         optimizer=optimizer,
@@ -126,17 +144,16 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
         train_loader=train_loader,
         val_loader=val_loader,
         test_loader=test_loader,
-        epochs=120,
+        epochs=epochs,
         early_stopping=True,
         device=device,
         eval_every=5,
         use_amp=True,
+        scheduler = scheduler,
     )
     
     # return validation loss or -R² depending on your goal
     return min(results["val_losses"])
-
-
 
 
 def make_loaders(
@@ -189,6 +206,8 @@ train_counter  = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/p
 test_structure = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_structure_TEST_BLINDED.csv")
 train_single   = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_single_concentration_TRAIN.csv")
 
+
+train["SMILES"] = train["SMILES"].apply(randomize_smiles) # randomize the SMILES strings to augment the data and prevent overfitting
 train['graph'] = train['SMILES'].apply(advanced_smiles_to_pyg_data) # convert the SMILES strings to PyG Data objects and store them in a new column 'graph'
 
 df_train, df_val, df_test = split_df(train, train=0.8, val=0.1, seed=SEED)
