@@ -290,12 +290,14 @@ def train_and_evaluate_edge(
     scheduler=None, # <--- NEW: pass a ReduceLROnPlateau here
 ):
     """
-    Faster train+eval for (edge-aware) GNNs.
+    Train an edge-aware GNN with optional mixed precision, periodic validation,
+    early stopping, and final test-set evaluation.
 
-    - Multi-task with optional masks (data.y_mask or NaN->mask)
-    - Shape alignment via align_targets(out, y, y_mask)
-    - Contest-aligned losses: pass split-specific criteria
-
+    Design notes:
+    - Supports multi-task targets with optional per-target masks.
+    - If ``data.y_mask`` is missing, NaNs in ``data.y`` are converted to a mask.
+    - Uses ``align_targets`` so predictions, targets, and masks always match shape.
+    - Accepts split-specific loss functions for train/val/test.
     """
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -304,7 +306,9 @@ def train_and_evaluate_edge(
     scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
 
     def forward_model(data, training: bool):
+        """Single forward-pass wrapper shared by train/val/test loops."""
         if training:
+            # Apply edge dropout only while training as regularization.
             data = data.clone()
             data = drop_edges_(data, p=0.15)
 
@@ -326,18 +330,21 @@ def train_and_evaluate_edge(
             )
 
     def _masked_flat(pred, target, mask):
+        """Return flattened prediction/target vectors, filtered by mask if present."""
         if mask is None:
             return pred.reshape(-1), target.reshape(-1)
         m = mask > 0
         return pred[m], target[m]
 
     def _masked_mae(pred, target, mask):
+        """Masked MAE computed over valid target entries only."""
         p, t = _masked_flat(pred, target, mask)
         if p.numel() == 0:
             return float("nan")
         return torch.mean(torch.abs(p - t)).item()
 
     def _masked_r2(pred, target, mask):
+        """Masked R² computed over valid target entries only."""
         p, t = _masked_flat(pred, target, mask)
         if p.numel() == 0:
             return float("nan")
@@ -345,12 +352,28 @@ def train_and_evaluate_edge(
         ss_tot = torch.sum((t - torch.mean(t)) ** 2)
         return (1 - ss_res / ss_tot).item() if ss_tot != 0 else float("nan")
 
+    def _prepare_targets(data, out):
+        """
+        Build clean targets and masks for loss/metric computation.
+
+        Priority:
+        1) Use ``data.y_mask`` when available.
+        2) Otherwise infer mask from non-NaN targets and replace NaNs with zeros.
+        3) Align tensors to model output shape via ``align_targets``.
+        """
+        y_raw, y_mask = data.y, getattr(data, "y_mask", None)
+        if y_mask is None:
+            y_mask = (~torch.isnan(y_raw)).float()
+            y_raw = torch.nan_to_num(y_raw, nan=0.0)
+        return align_targets(out, y_raw, y_mask)
+
     train_losses, val_losses = [], []
     best_val, best_state = float("inf"), None
     patience, patience_counter = 10, 0
 
     for epoch in range(1, epochs + 1):
         # ---------- Train ----------
+        # Full pass over training data with gradient updates.
         model.train()
         t0 = time.time()
         running, train_graphs = 0.0, 0
@@ -361,11 +384,7 @@ def train_and_evaluate_edge(
 
             with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                 out = forward_model(data, training=True)
-                y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-                if y_mask is None:  # NaN -> mask
-                    y_mask = (~torch.isnan(y_raw)).float()
-                    y_raw = torch.nan_to_num(y_raw, nan=0.0)
-                y, y_mask = align_targets(out, y_raw, y_mask)
+                y, y_mask = _prepare_targets(data, out)
                 loss = criterion_train(out, y, y_mask)
 
             scaler.scale(loss).backward()
@@ -384,6 +403,7 @@ def train_and_evaluate_edge(
         train_speed = train_graphs / (t1 - t0 + 1e-6)
 
         # ---------- Validation (every eval_every epochs) ----------
+        # Validation is periodic for speed on long training schedules.
         do_val = (epoch % eval_every == 0) or (epoch == epochs)
         if do_val:
             model.eval()
@@ -393,18 +413,14 @@ def train_and_evaluate_edge(
                     data = data.to(device)
                     with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                         out = forward_model(data, training=False)
-                        y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-                        if y_mask is None:
-                            y_mask = (~torch.isnan(y_raw)).float()
-                            y_raw = torch.nan_to_num(y_raw, nan=0.0)
-                        y, y_mask = align_targets(out, y_raw, y_mask)
+                        y, y_mask = _prepare_targets(data, out)
                         loss = criterion_eval(out, y, y_mask)
                     running += loss.item() * data.num_graphs
                     val_graphs += data.num_graphs
             val_loss = running / max(1, val_graphs)
             val_losses.append(val_loss)
 
-            # ---- NEW: step the scheduler on the validation metric ----
+            # Update scheduler from validation loss when provided
             if scheduler is not None:
                 scheduler.step(val_loss)
             curr_lr = optimizer.param_groups[0]["lr"]
@@ -431,6 +447,7 @@ def train_and_evaluate_edge(
         model.load_state_dict(best_state)
 
     # ---------- Test ----------
+    # Evaluate once on the held-out test split and collect predictions.
     model.eval()
     test_running, test_graphs = 0.0, 0
     preds, targets, masks = [], [], []
@@ -440,11 +457,7 @@ def train_and_evaluate_edge(
             data = data.to(device)
             with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
                 out = forward_model(data, training=False)
-                y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-                if y_mask is None:
-                    y_mask = (~torch.isnan(y_raw)).float()
-                    y_raw = torch.nan_to_num(y_raw, nan=0.0)
-                y, y_mask = align_targets(out, y_raw, y_mask)
+                y, y_mask = _prepare_targets(data, out)
                 loss = criterion_test(out, y, y_mask)
             test_running += loss.item() * data.num_graphs
             test_graphs += data.num_graphs
