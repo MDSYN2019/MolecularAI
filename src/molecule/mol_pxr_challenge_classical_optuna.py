@@ -1,3 +1,5 @@
+import argparse
+
 import optuna
 import pandas as pd
 import numpy as np
@@ -30,11 +32,37 @@ def smiles_to_morgan_fp(smiles: str, radius: int = 2, n_bits: int = N_BITS) -> n
     return arr
 
 
-def build_feature_matrix(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+def resolve_target_column(df: pd.DataFrame, explicit_target: str | None = None) -> str:
+    if explicit_target is not None:
+        if explicit_target not in df.columns:
+            raise KeyError(f"Requested target column '{explicit_target}' not found. Available columns: {list(df.columns)}")
+        return explicit_target
+
+    preferred = ["pEC50", "Mean", "target", "y", "label"]
+    for col in preferred:
+        if col in df.columns:
+            return col
+
+    numeric_candidates = [
+        c
+        for c in df.columns
+        if c != "SMILES" and pd.api.types.is_numeric_dtype(df[c])
+    ]
+    if len(numeric_candidates) == 1:
+        return numeric_candidates[0]
+
+    raise KeyError(
+        "Could not infer target column. Pass --target-col explicitly. "
+        f"Available columns: {list(df.columns)}"
+    )
+
+
+def build_feature_matrix(df: pd.DataFrame, target_col: str) -> tuple[np.ndarray, np.ndarray]:
     fps = np.stack([smiles_to_morgan_fp(s) for s in df["SMILES"]], axis=0)
     globals_arr = np.stack([rdkit_globals(s) for s in df["SMILES"]], axis=0).astype(np.float32)
     X = np.concatenate([fps, globals_arr], axis=1)
-    y = df["Mean"].to_numpy(dtype=np.float32)
+    y = df[target_col].to_numpy(dtype=np.float32)
+
     return X, y
 
 
@@ -115,8 +143,26 @@ def objective(trial: optuna.Trial) -> float:
 
 
 if __name__ == "__main__":
-    train = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv")
-    X_ALL, Y_ALL = build_feature_matrix(train)
+    parser = argparse.ArgumentParser(description="Classical ML Optuna tuning for PXR challenge")
+    parser.add_argument(
+        "--train-csv",
+        default="hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv",
+        help="Path/URL to training CSV",
+    )
+    parser.add_argument(
+        "--target-col",
+        default=None,
+        help="Target column name (auto-detected if omitted)",
+    )
+    parser.add_argument("--n-trials", type=int, default=60, help="Number of Optuna trials")
+    args = parser.parse_args()
+
+    train = pd.read_csv(args.train_csv)
+    target_col = resolve_target_column(train, args.target_col)
+    print(f"Using target column: {target_col}")
+
+    X_ALL, Y_ALL = build_feature_matrix(train, target_col)
+
 
     sampler = optuna.samplers.TPESampler(seed=SEED)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=8, n_warmup_steps=3)
@@ -126,7 +172,8 @@ if __name__ == "__main__":
         pruner=pruner,
         study_name="pxr_classical_ml_tuning",
     )
-    study.optimize(objective, n_trials=60, gc_after_trial=True)
+    study.optimize(objective, n_trials=args.n_trials, gc_after_trial=True)
+
 
     print("Best CV MAE:", study.best_value)
     print("Best params:", study.best_params)
