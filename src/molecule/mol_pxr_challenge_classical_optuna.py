@@ -62,6 +62,7 @@ def build_feature_matrix(df: pd.DataFrame, target_col: str) -> tuple[np.ndarray,
     globals_arr = np.stack([rdkit_globals(s) for s in df["SMILES"]], axis=0).astype(np.float32)
     X = np.concatenate([fps, globals_arr], axis=1)
     y = df[target_col].to_numpy(dtype=np.float32)
+
     return X, y
 
 
@@ -162,6 +163,7 @@ if __name__ == "__main__":
 
     X_ALL, Y_ALL = build_feature_matrix(train, target_col)
 
+
     sampler = optuna.samplers.TPESampler(seed=SEED)
     pruner = optuna.pruners.MedianPruner(n_startup_trials=8, n_warmup_steps=3)
     study = optuna.create_study(
@@ -171,6 +173,7 @@ if __name__ == "__main__":
         study_name="pxr_classical_ml_tuning",
     )
     study.optimize(objective, n_trials=args.n_trials, gc_after_trial=True)
+
 
     print("Best CV MAE:", study.best_value)
     print("Best params:", study.best_params)
