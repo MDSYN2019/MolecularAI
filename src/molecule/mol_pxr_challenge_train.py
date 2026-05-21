@@ -32,12 +32,13 @@ BATCH_SIZE = 64
 NUM_WORKERS = 4
 
 def attach_targets(df: pd.DataFrame, target_col: str = "pEC50") -> pd.DataFrame:
+
     df = df.copy().reset_index(drop = True)
     df["graph"] = df["graph"].astype(object)
 
     for idx, graph in df["graph"].items():
-        y_value = df.at[idx, target_col]
-        graph.y = torch.tensor([y_value], dtype = torch.float32)
+        y_value = df.at[idx, target_col] # get the target value for the current row in the dataframe 
+        graph.y = torch.tensor([y_value], dtype = torch.float32) # convert the target value to a Pytorch tensor and attach it to the graph object in the dataframe
 
     return df
     
@@ -200,8 +201,8 @@ def make_loaders(
     
 SEED = 42
 
-train         = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv")
-test          = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TEST_BLINDED.csv")
+train         = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv") # training data 
+test          = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TEST_BLINDED.csv") # testing data 
 train_counter  = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_counter-assay_TRAIN.csv")
 test_structure = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_structure_TEST_BLINDED.csv")
 train_single   = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_single_concentration_TRAIN.csv")
