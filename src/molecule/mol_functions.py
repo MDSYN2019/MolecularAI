@@ -672,11 +672,12 @@ def align_targets(
     Ensure y and y_mask match pred shape [B, T].
     Accepts y / mask as [B], [B*T], or already [B, T].
     """
-    B, T = pred.shape
+    B, T = pred.shape # Get the batch size and number of targets from the prediction tensor 
 
     # --- fix y ---
     if y is None:
         raise RuntimeError("Target y is None")
+
     if y.dim() == 1:  # [B] or [B*T]
         if y.numel() == B * T:
             y = y.view(B, T)

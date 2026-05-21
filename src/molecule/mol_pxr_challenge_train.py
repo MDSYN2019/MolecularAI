@@ -1,3 +1,4 @@
+
 from mol_functions import (
     rdkit_globals,
     advanced_smiles_to_graph,
@@ -14,6 +15,7 @@ from functools import partial
 import optuna
 import pandas as pd
 import numpy as np
+import logging
 
 import torch
 from torch import nn
@@ -32,10 +34,8 @@ BATCH_SIZE = 64
 NUM_WORKERS = 4
 
 def attach_targets(df: pd.DataFrame, target_col: str = "pEC50") -> pd.DataFrame:
-
     df = df.copy().reset_index(drop = True)
     df["graph"] = df["graph"].astype(object)
-
     for idx, graph in df["graph"].items():
         y_value = df.at[idx, target_col] # get the target value for the current row in the dataframe 
         graph.y = torch.tensor([y_value], dtype = torch.float32) # convert the target value to a Pytorch tensor and attach it to the graph object in the dataframe
@@ -50,12 +50,12 @@ def advanced_smiles_to_pyg_data(smiles: str) -> Data:
 
     x = torch.tensor(node_features, dtype=torch.float32)
     if edge_indices:
-        edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
+        edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous() # convert to tensor, transpose to shape (2, num_edges) and make contiguous for efficient processing
     else:
         edge_index = torch.empty((2, 0), dtype=torch.long)
 
     if len(edge_features) > 0:
-        edge_attr = torch.tensor(edge_features, dtype=torch.float32)
+        edge_attr = torch.tensor(edge_features, dtype=torch.float32) # convert the edge features to a tensor of shape (num_edges, edge_dim), where edge_dim is the number of features per edge (in this case, 6: 4 bond-type one-hots + is_con
     else:
         edge_dim = 6  # 4 bond-type one-hots + is_conjugated + is_in_ring
         edge_attr = torch.empty((0, edge_dim), dtype=torch.float32)
@@ -71,12 +71,13 @@ def attach_u_features(df: pd.DataFrame, u_scaler: StandardScaler) -> pd.DataFram
     """
     df = df.copy().reset_index(drop=True)
     df["graph"] = df["graph"].astype(object)
-
     u_vectors = []
+    
     for smiles in df["SMILES"]:
-        values = rdkit_globals(smiles) # compute vector of RD_FEATURES
+        values  = rdkit_globals(smiles) # compute vector of RD_FEATURES
         values = u_scaler.transform(values.reshape(1, -1))[0] # transform the features with the standardscaler to normalize
         u_vectors.append(torch.tensor(values, dtype=torch.float32)) # convert to pytorch tensor and append to output list
+
     df["u"] = u_vectors # insert into the pandas table
 
     for idx, graph in df["graph"].items():
@@ -127,11 +128,9 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
     if scheduler_name == "cosine":
         # cosine annealing
         scheduler = CosineAnnealingLR(optimizer, T_max = epochs, eta_min = 1e-6)
-
     else:
         scheduler = CosineAnnealingLR(optimizer, T_max = epochs, eta_min = 1e-6)
 
-        
     criterion_train = StandardMAE()
     criterion_eval = StandardMAE()
     criterion_test = StandardMAE()
@@ -151,11 +150,9 @@ def objective(trial, sample_graph, train_loader, val_loader, test_loader, global
         eval_every=5,
         use_amp=True,
         scheduler = scheduler,
-    )
-    
+    )    
     # return validation loss or -R² depending on your goal
     return min(results["val_losses"])
-
 
 def make_loaders(
     df_train: pd.DataFrame,
@@ -200,9 +197,10 @@ def make_loaders(
 #train_single = ds_single["train"]
     
 SEED = 42
-
 train         = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TRAIN.csv") # training data 
 test          = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_TEST_BLINDED.csv") # testing data 
+
+
 train_counter  = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_counter-assay_TRAIN.csv")
 test_structure = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_structure_TEST_BLINDED.csv")
 train_single   = pd.read_csv("hf://datasets/openadmet/pxr-challenge-train-test/pxr-challenge_single_concentration_TRAIN.csv")
@@ -212,6 +210,9 @@ train["SMILES"] = train["SMILES"].apply(randomize_smiles) # randomize the SMILES
 train['graph'] = train['SMILES'].apply(advanced_smiles_to_pyg_data) # convert the SMILES strings to PyG Data objects and store them in a new column 'graph'
 
 df_train, df_val, df_test = split_df(train, train=0.8, val=0.1, seed=SEED)
+
+
+
 
 u_train = np.stack([rdkit_globals(s) for s in df_train["SMILES"]], axis=0)
 u_scaler = StandardScaler().fit(u_train)
@@ -232,62 +233,90 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 sample_graph = df_train["graph"].iloc[0]
 global_feat_dim = df_train["u"].iloc[0].shape[0]
 
-#model = GINELayerUpgraded(
-#    in_channels=sample_graph.x.shape[1],
-#    edge_dim=sample_graph.edge_attr.shape[1],
-#    out_channels=1,
-#    hidden_channels=256,
-#    num_layers=6,
-#    dropout=0.2,
-#    input_feature_dropout=0.1,
-#    edge_feature_dropout=0.05,
-#    pooling="attn",
-#    use_gru=False,
-#    use_residual=True,
-#    norm="batch",
-#    global_feat_dim=df_train["u"].iloc[0].shape[0],
-#).to(device)
+model = GINELayerUpgraded(
+    in_channels=sample_graph.x.shape[1],
+    edge_dim=sample_graph.edge_attr.shape[1],
+    out_channels=1,
+    hidden_channels=256,
+    num_layers=6,
+    dropout=0.2,
+    input_feature_dropout=0.1,
+    edge_feature_dropout=0.05,
+    pooling="attn",
+    use_gru=False,
+    use_residual=True,
+    norm="batch",
+    global_feat_dim=df_train["u"].iloc[0].shape[0],
+).to(device)
+
+
 #
-#optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
-#
-#criterion_train = StandardMAE()
-#criterion_eval = StandardMAE()
-#criterion_test = StandardMAE()
-#
-#results = train_and_evaluate_edge(
-#    model=model,
-#    optimizer=optimizer,
-#    criterion_train=criterion_train,
-#    criterion_eval=criterion_eval,
-#    criterion_test=criterion_test,
-#    train_loader=train_loader,
-#    val_loader=val_loader,
-#    test_loader=test_loader,
-#    epochs=120,
-#    early_stopping=True,
-#    device=device,
-#    eval_every=5,
-#    use_amp=True,
-#)
-#
-#logging.info(
-#    "Finished GINE training | test contest wMAE: %.5f | test MAE: %.5f | test R2: %.5f",
-#    results["test_losses"],
-#    results["test_mae"],
-#    results["test_r2"],
-#)
-#
-if __name__ == "__main__":
-    objective_fn = partial(
-        objective,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        test_loader=test_loader,
-        sample_graph=sample_graph,
-        global_feat_dim=global_feat_dim,
-        device=device,
-    )
-    study = optuna.create_study(direction="minimize")  # or "maximize"
-    study.optimize(objective_fn, n_trials=30)
-    print("Best value:", study.best_value)
-    print("Best params:", study.best_params)
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+
+
+criterion_train = StandardMAE()
+criterion_eval = StandardMAE()
+criterion_test = StandardMAE()
+
+results = train_and_evaluate_edge(
+    model=model,
+    optimizer=optimizer,
+    criterion_train=criterion_train,
+    criterion_eval=criterion_eval,
+    criterion_test=criterion_test,
+    train_loader=train_loader,
+    val_loader=val_loader,
+    test_loader=test_loader,
+    epochs=120,
+    early_stopping=True,
+    device=device,
+    eval_every=5,
+    use_amp=True,
+)
+
+logging.info(
+    "Finished GINE training | test contest wMAE: %.5f | test MAE: %.5f | test R2: %.5f",
+    results["test_losses"],
+    results["test_mae"],
+    results["test_r2"],
+)
+
+"""
+After training and evaluating the model, we can use it to make predictions on the test set. We will first convert the smiles strings in the test set to PyG data objects, and then attach the global features to the graph objects in the dataframe. Finally, we will create a dataloader for the test set and use the trained model to make prediction, which we will store in a submission dataframe with the required format for the challenge
+"""
+
+test["graph"] = test["SMILES"].apply(advanced_smiles_to_pyg_data)
+test_final = attach_u_features(test, u_scaler) # using the same scaler as we used for the training data to transform the global features of the test data, and attach them to the graph objects in the dataframe 
+final_test_loader = DataLoader(test_final["graph"].tolist(), shuffle=False, batch_size = 64) # create a dataloader for the test data, without shuffling and with a batch size of 64 
+model = results["model"]
+model.to(device)
+model.eval() # set the model to evaluation mode to disable dropout and other training-specific behavior
+
+predictions = []
+with torch.no_grad(): # disable gradient calculation for inference to save memory and computation 
+    for batch in final_test_loader:
+        batch = batch.to(device) # move the batch the same device as the model 
+        out = model(batch.x, batch.edge_index, batch.edge_attr, batch.u)
+        predictions.append(out.detach().cpu())
+        
+predictions = torch.cat(predictions, dim=0).squeeze(-1).numpy()
+submission = pd.DataFrame({
+    "Molecule Name": test_final["Molecule Name"],
+    "pEC50": predictions,
+})
+
+
+#if __name__ == "__main__":
+#    objective_fn = partial(
+#        objective,
+#        train_loader=train_loader,
+#        val_loader=val_loader,
+#        test_loader=test_loader,
+#        sample_graph=sample_graph,
+#        global_feat_dim=global_feat_dim,
+#        device=device,
+#    )
+#    study = optuna.create_study(direction="minimize")  # or "maximize"
+#    study.optimize(objective_fn, n_trials=30)
+#    print("Best value:", study.best_value)
+#    print("Best params:", study.best_params)

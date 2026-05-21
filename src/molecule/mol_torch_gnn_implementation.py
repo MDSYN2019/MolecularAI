@@ -164,7 +164,7 @@ def train_and_evaluate(
     test_loader,
     epochs=50,
     early_stopping=True,
-):
+) -> dict[str, torch.Tensor | list[float] | float | object]:
     train_losses = []
     val_losses = []
     float("inf")
@@ -299,6 +299,8 @@ def train_and_evaluate_edge(
     - Uses ``align_targets`` so predictions, targets, and masks always match shape.
     - Accepts split-specific loss functions for train/val/test.
     """
+
+    
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -314,14 +316,14 @@ def train_and_evaluate_edge(
 
         # if we do have edges in our input
         if hasattr(data, "edge_attr") and data.edge_attr is not None:
-            return model(
-                data.x.float(),
-                data.edge_index,
-                data.edge_attr.float(),
-                batch=data.batch,
-                u=getattr(data, "u", None),   # <<---- ADD THIS
+            return model( 
+                data.x.float(), # convert node faetures into floats 
+                data.edge_index, # edge indices for message passing 
+                data.edge_attr.float(), # edge features for message passing 
+                batch=data.batch, # batch indices for pooling 
+                u=getattr(data, "u", None),   # optional global features
             )
-        else:
+        else: # if we do not have edges in our input, we can just pass the node features and edge indices to the model, and set edge_attr to None
             return model(
                 data.x.float(),
                 data.edge_index,
@@ -329,21 +331,21 @@ def train_and_evaluate_edge(
                 u=getattr(data, "u", None),   # <<---- AND HERE (if you ever use no edge_attr)
             )
 
-    def _masked_flat(pred, target, mask):
+    def _masked_flat(pred, target, mask) -> (torch.Tensor, torch.Tensor):
         """Return flattened prediction/target vectors, filtered by mask if present."""
         if mask is None:
             return pred.reshape(-1), target.reshape(-1)
         m = mask > 0
         return pred[m], target[m]
 
-    def _masked_mae(pred, target, mask):
+    def _masked_mae(pred, target, mask) -> float:
         """Masked MAE computed over valid target entries only."""
         p, t = _masked_flat(pred, target, mask)
         if p.numel() == 0:
             return float("nan")
         return torch.mean(torch.abs(p - t)).item()
 
-    def _masked_r2(pred, target, mask):
+    def _masked_r2(pred, target, mask) -> float:
         """Masked R² computed over valid target entries only."""
         p, t = _masked_flat(pred, target, mask)
         if p.numel() == 0:
@@ -362,39 +364,39 @@ def train_and_evaluate_edge(
         3) Align tensors to model output shape via ``align_targets``.
         """
         y_raw, y_mask = data.y, getattr(data, "y_mask", None)
-        if y_mask is None:
+        if y_mask is None:  # infer mask from NaNs in targets if no explicit mask is provided 
             y_mask = (~torch.isnan(y_raw)).float()
             y_raw = torch.nan_to_num(y_raw, nan=0.0)
-        return align_targets(out, y_raw, y_mask)
+        return align_targets(out, y_raw, y_mask) 
 
     train_losses, val_losses = [], []
     best_val, best_state = float("inf"), None
     patience, patience_counter = 10, 0
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, epochs + 1):        
         # ---------- Train ----------
         # Full pass over training data with gradient updates.
         model.train()
         t0 = time.time()
         running, train_graphs = 0.0, 0
 
-        for data in train_loader:
+        for data in train_loader: # iterate over batches of graphs in the training set 
             data = data.to(device)
             optimizer.zero_grad(set_to_none=True)
 
-            with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):
+            with torch.amp.autocast(device_type="cuda", enabled=amp_enabled):  # automatic mixed precision context manager for faster training on CUDA 
                 out = forward_model(data, training=True)
                 y, y_mask = _prepare_targets(data, out)
-                loss = criterion_train(out, y, y_mask)
+                loss = criterion_train(out, y, y_mask) 
 
-            scaler.scale(loss).backward()
+            scaler.scale(loss).backward() # scale the loss for mixed precision training 
             # gradient clipping part
             scaler.unscale_(optimizer)  # required before clipping when using AMP
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             scaler.step(optimizer)
             scaler.update()
 
-            running += loss.item() * data.num_graphs
+            running += loss.item() * data.num_graphs # accumulate the total loss across all graphs in the batch (loss is averaged per graph, so we multiply by num_graphs to get the total loss for this batch)
             train_graphs += data.num_graphs
 
         train_loss = running / max(1, train_graphs)
@@ -405,6 +407,7 @@ def train_and_evaluate_edge(
         # ---------- Validation (every eval_every epochs) ----------
         # Validation is periodic for speed on long training schedules.
         do_val = (epoch % eval_every == 0) or (epoch == epochs)
+        
         if do_val:
             model.eval()
             running, val_graphs = 0.0, 0
