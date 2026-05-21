@@ -300,7 +300,6 @@ with torch.no_grad(): # disable gradient calculation for inference to save memor
         predictions.append(out.detach().cpu())
         
 predictions = torch.cat(predictions, dim=0).squeeze(-1).numpy()
-    raise ValueError("Predictions contain NaN or inf values; cannot write submission.")
 
 submission = pd.DataFrame(
     {
