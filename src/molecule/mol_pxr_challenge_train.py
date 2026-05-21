@@ -296,7 +296,7 @@ predictions = []
 with torch.no_grad(): # disable gradient calculation for inference to save memory and computation 
     for batch in final_test_loader:
         batch = batch.to(device) # move the batch the same device as the model 
-        out = model(batch.x, batch.edge_index, batch.edge_attr, batch.u)
+        out = model(batch.x, batch.edge_index, batch.edge_attr, batch.batch, batch.u)
         predictions.append(out.detach().cpu())
         
 predictions = torch.cat(predictions, dim=0).squeeze(-1).numpy()
@@ -304,6 +304,8 @@ submission = pd.DataFrame({
     "Molecule Name": test_final["Molecule Name"],
     "pEC50": predictions,
 })
+submission.to_csv("pxr_challenge_submission.csv", index=False)
+logging.info("Saved blinded-test predictions to pxr_challenge_submission.csv")
 
 
 #if __name__ == "__main__":
