@@ -300,10 +300,16 @@ with torch.no_grad(): # disable gradient calculation for inference to save memor
         predictions.append(out.detach().cpu())
         
 predictions = torch.cat(predictions, dim=0).squeeze(-1).numpy()
-submission = pd.DataFrame({
-    "Molecule Name": test_final["Molecule Name"],
-    "pEC50": predictions,
-})
+    raise ValueError("Predictions contain NaN or inf values; cannot write submission.")
+
+submission = pd.DataFrame(
+    {
+        "SMILES": test_final["SMILES"].values,
+        "Molecule Name": test_final["Molecule Name"].values,
+        "pEC50": predictions.astype(np.float64),
+    }
+)[["SMILES", "Molecule Name", "pEC50"]]
+
 submission.to_csv("pxr_challenge_submission.csv", index=False)
 logging.info("Saved blinded-test predictions to pxr_challenge_submission.csv")
 
