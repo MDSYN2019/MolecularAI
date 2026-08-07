@@ -1,0 +1,4 @@
+feast[postgres]>=0.40,<1
+psycopg[binary]>=3.1,<4
+rdkit>=2023.9
+pandas>=2,<3

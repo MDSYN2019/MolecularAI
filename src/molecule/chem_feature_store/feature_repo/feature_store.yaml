@@ -1,12 +1,17 @@
-project: chem_feature_store
-# By default, the registry is a file (but can be turned into a more scalable SQL-backed registry)
-registry: data/registry.db
-# The provider primarily specifies default offline / online stores & storing the registry in a given cloud
+project: molecular_rdkit
 provider: local
+registry: data/registry.db
+offline_store:
+  type: postgres
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  database: ${POSTGRES_DB}
+  db_schema: public
+  user: ${POSTGRES_USER}
+  password: ${POSTGRES_PASSWORD}
 online_store:
-    type: sqlite
-    path: data/online_store.db
-entity_key_serialization_version: 2
-# By default, no_auth for authentication and authorization, other possible values kubernetes and oidc. Refer the documentation for more details.
+  type: sqlite
+  path: data/online_store.db
+entity_key_serialization_version: 3
 auth:
-    type: no_auth
+  type: no_auth

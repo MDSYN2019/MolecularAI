@@ -1,29 +1,68 @@
-# Feast Quickstart
-If you haven't already, check out the quickstart guide on Feast's website (http://docs.feast.dev/quickstart), which 
-uses this repo. A quick view of what's in this repository's `feature_repo/` directory:
+# RDKit molecule library and Feast feature store
 
-* `data/` contains raw demo parquet data
-* `feature_repo/example_repo.py` contains demo feature definitions
-* `feature_repo/feature_store.yaml` contains a demo setup configuring where data sources are
-* `feature_repo/test_workflow.py` showcases how to run all key Feast commands, including defining, retrieving, and pushing features. 
+This directory provides a reproducible molecular feature platform:
 
-You can run the overall workflow with `python test_workflow.py`.
+* PostgreSQL with the RDKit cartridge is the system of record for structures,
+  fingerprints, and calculated descriptors.
+* Feast reads descriptor history from PostgreSQL for point-in-time-correct
+  training sets and materializes it to a local online store.
+* `MoleculeRepository` provides ingestion, exact lookup, substructure search,
+  and Tanimoto similarity search without hiding SQL behind an ORM.
 
-## To move from this into a more production ready workflow:
-> See more details in [Running Feast in production](https://docs.feast.dev/how-to-guides/running-feast-in-production)
+## Start locally
 
-1. First: you should start with a different Feast template, which delegates to a more scalable offline store. 
-   - For example, running `feast init -t gcp`
-   or `feast init -t aws` or `feast init -t snowflake`. 
-   - You can see your options if you run `feast init --help`.
-2. `feature_store.yaml` points to a local file as a registry. You'll want to setup a remote file (e.g. in S3/GCS) or a 
-SQL registry. See [registry docs](https://docs.feast.dev/getting-started/concepts/registry) for more details. 
-3. This example uses a file [offline store](https://docs.feast.dev/getting-started/components/offline-store) 
-   to generate training data. It does not scale. We recommend instead using a data warehouse such as BigQuery, 
-   Snowflake, Redshift. There is experimental support for Spark as well.
-4. Setup CI/CD + dev vs staging vs prod environments to automatically update the registry as you change Feast feature definitions. See [docs](https://docs.feast.dev/how-to-guides/running-feast-in-production#1.-automatically-deploying-changes-to-your-feature-definitions).
-5. (optional) Regularly scheduled materialization to power low latency feature retrieval (e.g. via Airflow). See [Batch data ingestion](https://docs.feast.dev/getting-started/concepts/data-ingestion#batch-data-ingestion)
-for more details.
-6. (optional) Deploy feature server instances with `feast serve` to expose endpoints to retrieve online features.
-   - See [Python feature server](https://docs.feast.dev/reference/feature-servers/python-feature-server) for details.
-   - Use cases can also directly call the Feast client to fetch features as per [Feature retrieval](https://docs.feast.dev/getting-started/concepts/feature-retrieval)
+Docker and Python 3.10+ are required.
+
+```bash
+cd src/molecule/chem_feature_store
+cp .env.example .env
+docker compose up -d --wait
+python -m pip install -r requirements.txt
+set -a && source .env && set +a
+python -m chem_feature_store.ingest examples/molecules.csv
+
+cd feature_repo
+feast apply
+feast materialize-incremental "$(date -u +%Y-%m-%dT%H:%M:%S)"
+```
+
+Run the commands from `src/molecule` (or install the root project) so that the
+`chem_feature_store` package is importable. The example CSV requires a
+`smiles` column and may include a `name` column.
+
+## Retrieve features
+
+```python
+from datetime import datetime, timezone
+import pandas as pd
+from feast import FeatureStore
+
+store = FeatureStore(repo_path="feature_repo")
+entity_df = pd.DataFrame({
+    "molecule_id": ["00000000-0000-0000-0000-000000000000"],
+    "event_timestamp": [datetime.now(timezone.utc)],
+})
+training = store.get_historical_features(
+    entity_df,
+    features=["molecular_descriptors:molecular_weight",
+              "molecular_descriptors:logp"],
+).to_df()
+```
+
+For production, replace the local Feast registry and SQLite online store with
+shared services, keep credentials in a secret manager, and run descriptor
+ingestion and materialization as scheduled jobs. PostgreSQL remains the
+offline source and searchable structure library.
+
+## Database behavior
+
+The schema deduplicates canonical SMILES. It stores an RDKit `mol` value
+and a generated Morgan fingerprint, and creates GiST indexes for substructure
+and similarity operators. Re-ingesting a structure updates its metadata and
+appends a time-stamped descriptor record for Feast. Invalid SMILES are rejected
+before a transaction starts.
+
+```bash
+pytest -q
+docker compose down -v
+```
